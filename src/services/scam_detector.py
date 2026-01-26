@@ -1,0 +1,296 @@
+from typing import Optional, List, Dict, Any
+from google import genai
+from config import settings
+from src.models.schemas import Message
+import logging
+import json
+import hashlib
+
+logger = logging.getLogger(__name__)
+
+
+class ScamDetector:
+    """AI-powered scam detection service with automatic fallback and caching"""
+    
+    def __init__(self):
+        self.primary_provider = settings.LLM_PROVIDER
+        self.available_providers = []
+        self.clients = {}
+        self.models = {}
+        self.detection_cache = {}  # Simple in-memory cache for faster repeated detections
+        self.cache_max_size = 100  # Limit cache size
+        
+        # Initialize all available providers dynamically
+        self._initialize_providers()
+    
+    def _get_cache_key(self, message: str) -> str:
+        """Generate cache key for message"""
+        return hashlib.md5(message.lower().strip().encode()).hexdigest()
+    
+    def _add_to_cache(self, message: str, result: dict):
+        """Add detection result to cache"""
+        if len(self.detection_cache) >= self.cache_max_size:
+            # Remove oldest entry (simple FIFO)
+            self.detection_cache.pop(next(iter(self.detection_cache)))
+        
+        cache_key = self._get_cache_key(message)
+        self.detection_cache[cache_key] = result
+        logger.debug(f"Cached detection result for message: {message[:50]}...")
+    
+    def _initialize_providers(self):
+        """Initialize Gemini LLM provider"""
+        # Try Gemini
+        try:
+            if settings.GOOGLE_API_KEY and settings.GOOGLE_API_KEY != "your-google-api-key-here":
+                self.clients['gemini'] = genai.Client(api_key=settings.GOOGLE_API_KEY)
+                self.models['gemini'] = settings.GEMINI_MODEL
+                self.available_providers.append('gemini')
+                logger.info(f"Gemini initialized with model: {settings.GEMINI_MODEL}")
+        except Exception as e:
+            logger.warning(f"Failed to initialize Gemini: {e}")
+        
+        if not self.available_providers:
+            logger.warning("Gemini not available - will use keyword-based detection only")
+        else:
+            logger.info(f"Available providers: {', '.join(self.available_providers)}")
+    
+    def _call_llm(self, provider: str, prompt: str) -> str:
+        """Call Gemini LLM with error handling"""
+        try:
+            if provider == "gemini":
+                # Try multiple Gemini models if one fails (Pro for quality, Flash for speed)
+                gemini_models = [
+                    self.models['gemini'],
+                    'models/gemini-2.5-pro',
+                    'models/gemini-pro-latest',
+                    'models/gemini-2.5-flash',
+                    'models/gemini-flash-latest',
+                    'models/gemini-2.0-flash'
+                ]
+                
+                last_error = None
+                for model_name in gemini_models:
+                    try:
+                        response = self.clients['gemini'].models.generate_content(
+                            model=model_name,
+                            contents=prompt
+                        )
+                        logger.info(f"Successfully used Gemini model: {model_name}")
+                        return response.text
+                    except Exception as model_error:
+                        last_error = model_error
+                        logger.warning(f"Gemini model {model_name} failed: {model_error}")
+                        continue
+                
+                # If all models failed, raise the last error
+                if last_error:
+                    raise last_error
+            
+            raise ValueError(f"Unknown provider: {provider}")
+            
+        except Exception as e:
+            logger.error(f"Error calling {provider}: {e}")
+            raise
+    
+    def detect_scam(self, message: str, conversation_history: List[Message] = None) -> dict:
+        """
+        Detect if a message is a scam with caching for performance
+        Returns: {
+            'is_scam': bool,
+            'confidence': float,
+            'scam_type': str,
+            'reasoning': str
+        }
+        """
+        
+        # Check cache first for faster response
+        cache_key = self._get_cache_key(message)
+        if cache_key in self.detection_cache:
+            logger.info(f"Cache hit for message detection")
+            cached_result = self.detection_cache[cache_key].copy()
+            cached_result['reasoning'] = cached_result.get('reasoning', '') + ' [cached]'
+            return cached_result
+        
+        # Build context from conversation history
+        context = ""
+        if conversation_history:
+            context = "Previous conversation:\n"
+            for msg in conversation_history[-5:]:  # Last 5 messages for context
+                context += f"{msg.sender}: {msg.text}\n"
+        
+        prompt = f"""Analyze the following message and determine if it's a scam or fraudulent attempt.
+
+{context}
+
+Current message to analyze: "{message}"
+
+Consider these scam indicators:
+1. Urgency tactics (immediate action required, account will be blocked)
+2. Request for sensitive information (UPI ID, bank details, OTP, passwords)
+3. Threats or fear tactics
+4. Too-good-to-be-true offers (prizes, lottery wins)
+5. Impersonation of banks, government, or official entities
+6. Suspicious links or payment requests
+7. Poor grammar or spelling (sometimes)
+8. Unsolicited contact
+
+Respond ONLY with a JSON object (no markdown):
+{{
+  "is_scam": true/false,
+  "confidence": 0.0-1.0,
+  "scam_type": "bank_fraud/upi_fraud/phishing/fake_offer/other/none",
+  "reasoning": "brief explanation",
+  "key_indicators": ["indicator1", "indicator2"]
+}}"""
+
+        # Try Gemini, fallback to keywords if fails
+        if not self.available_providers:
+            logger.warning("Gemini not available - using fallback detection")
+            return self._fallback_detection(message)
+        
+        providers_to_try = ['gemini'] if 'gemini' in self.available_providers else []
+        
+        last_error = None
+        for provider in providers_to_try:
+            try:
+                logger.info(f"Attempting scam detection with provider: {provider}")
+                result = self._call_llm(provider, prompt)
+                
+                # Clean JSON from markdown code blocks (Gemini often wraps in ```json```)
+                result_clean = result.strip()
+                if result_clean.startswith('```'):
+                    # Extract content between code fences
+                    lines = result_clean.split('\n')
+                    result_clean = '\n'.join(lines[1:-1]) if len(lines) > 2 else result_clean
+                    result_clean = result_clean.replace('```json', '').replace('```', '').strip()
+                
+                # Parse JSON response
+                detection_result = json.loads(result_clean)
+                logger.info(f"Successfully detected with {provider}: is_scam={detection_result.get('is_scam')}")
+                
+                # Cache successful detection
+                self._add_to_cache(message, detection_result)
+                
+                return detection_result
+                
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON parse error from {provider}: {e}")
+                last_error = e
+                continue
+            except Exception as e:
+                logger.error(f"Error with {provider}: {e}")
+                last_error = e
+                continue
+        
+        # All providers failed - use fallback
+        logger.warning(f"All LLM providers failed (last error: {last_error}) - using keyword-based fallback")
+        fallback_result = self._fallback_detection(message)
+        
+        # Cache fallback result too (for repeated messages)
+        self._add_to_cache(message, fallback_result)
+        
+        return fallback_result
+    
+    def _fallback_detection(self, message: str) -> dict:
+        """Enhanced keyword-based scam detection with intelligent type classification"""
+        import re
+        
+        message_lower = message.lower()
+        
+        # Category-specific keyword patterns for intelligent classification
+        bank_fraud_keywords = ['bank', 'account', 'customer', 'account blocked', 'account suspended', 'kyc', 'ifsc', 'atm', 'debit card', 'credit card', 'sbi', 'hdfc', 'icici', 'axis', 'verify your identity']
+        upi_fraud_keywords = ['upi', 'paytm', 'phonepe', 'gpay', 'google pay', 'bhim', 'payment', 'transfer', 'send money', 'wallet']
+        phishing_keywords = ['click', 'link', 'verify', 'confirm', 'website', 'login', 'password', 'download', 'update now']
+        lottery_keywords = ['won', 'winner', 'prize', 'lottery', 'jackpot', 'claim', 'congratulations', 'lucky', 'selected', 'crore', 'lakh']
+        
+        # General urgency/scam indicators
+        urgency_keywords = ['urgent', 'immediate', 'now', 'today', 'expire', 'last chance', 'limited time']
+        threat_keywords = ['block', 'blocked', 'suspend', 'suspended', 'close', 'terminate', 'legal action', 'police', 'will be blocked']
+        sensitive_keywords = ['otp', 'pin', 'password', 'cvv', 'card number', 'account number', 'verification code']
+        
+        # Count matches per category
+        bank_score = sum(1 for kw in bank_fraud_keywords if kw in message_lower)
+        upi_score = sum(1 for kw in upi_fraud_keywords if kw in message_lower)
+        phishing_score = sum(1 for kw in phishing_keywords if kw in message_lower)
+        lottery_score = sum(1 for kw in lottery_keywords if kw in message_lower)
+        urgency_score = sum(1 for kw in urgency_keywords if kw in message_lower)
+        threat_score = sum(1 for kw in threat_keywords if kw in message_lower)
+        sensitive_score = sum(1 for kw in sensitive_keywords if kw in message_lower)
+        
+        # Check for URLs and links (strong phishing indicator)
+        has_url = bool(re.search(r'http[s]?://[^\s]+', message))
+        has_short_url = bool(re.search(r'\b(?:bit\.ly|tinyurl|goo\.gl|ow\.ly|short\.link|t\.co)/[a-zA-Z0-9\-_]+', message, re.IGNORECASE))
+        has_suspicious_link = bool(re.search(r'\b\w+\.\w+/\w+', message))
+        
+        # Phone number patterns (Indian format)
+        has_phone = bool(re.search(r'(?:\+91|91)?[6-9]\d{9}', message))
+        
+        # Calculate base score
+        base_score = urgency_score + threat_score + sensitive_score
+        
+        # URL scoring
+        if has_url or has_short_url:
+            phishing_score += 3
+            base_score += 3
+        elif has_suspicious_link:
+            phishing_score += 1
+            base_score += 1
+        
+        # Phone number in suspicious context
+        if has_phone and (urgency_score > 0 or threat_score > 0):
+            base_score += 1
+        
+        # OTP + Threat combo is very strong bank fraud indicator
+        if sensitive_score > 0 and threat_score > 0:
+            bank_score += 2
+            base_score += 2
+        
+        # Determine scam type based on scores
+        total_score = base_score
+        scam_type = 'none'
+        type_confidence = 0.0
+        
+        if lottery_score >= 2:
+            scam_type = 'fake_offer'
+            type_confidence = min(lottery_score * 0.3, 0.95)
+            total_score += lottery_score
+        elif bank_score >= 2 or (sensitive_score > 0 and threat_score > 0):
+            # OTP + threat OR bank keywords = bank_fraud
+            scam_type = 'bank_fraud'
+            type_confidence = min((bank_score + sensitive_score + threat_score) * 0.25, 0.95)
+            total_score += bank_score
+        elif upi_score >= 2:
+            scam_type = 'upi_fraud'
+            type_confidence = min(upi_score * 0.3, 0.95)
+            total_score += upi_score
+        elif (has_url or has_short_url) and phishing_score >= 2:
+            scam_type = 'phishing'
+            type_confidence = min(phishing_score * 0.35, 0.95)
+            total_score += phishing_score
+        elif base_score >= 3:
+            scam_type = 'potential_scam'
+            type_confidence = min(base_score * 0.25, 0.90)
+        
+        is_scam = total_score >= 2 or type_confidence >= 0.5
+        confidence = max(type_confidence, min(total_score * 0.2, 0.95)) if is_scam else min(total_score * 0.1, 0.4)
+        
+        # Build reasoning
+        indicators = []
+        if bank_score > 0: indicators.append(f'{bank_score} bank-related terms')
+        if upi_score > 0: indicators.append(f'{upi_score} UPI/payment terms')
+        if lottery_score > 0: indicators.append(f'{lottery_score} lottery/prize terms')
+        if urgency_score > 0: indicators.append(f'{urgency_score} urgency indicators')
+        if threat_score > 0: indicators.append(f'{threat_score} threat indicators')
+        if sensitive_score > 0: indicators.append(f'{sensitive_score} sensitive info requests')
+        if has_url or has_short_url: indicators.append('suspicious URL')
+        if has_phone: indicators.append('phone number')
+        
+        reasoning = f"Classified as {scam_type}: " + ", ".join(indicators) if indicators else "No significant scam indicators"
+        
+        return {
+            'is_scam': is_scam,
+            'confidence': confidence,
+            'scam_type': scam_type,
+            'reasoning': reasoning,
+            'key_indicators': indicators
+        }
