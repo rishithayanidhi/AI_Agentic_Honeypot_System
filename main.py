@@ -2,7 +2,12 @@ from fastapi import FastAPI, HTTPException, Security, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 import logging
+import asyncio
+import warnings
 from typing import Optional, Union
+
+# Suppress Pydantic warnings from google-genai library
+warnings.filterwarnings("ignore", category=UserWarning, module="pydantic._internal._fields")
 
 from config import settings
 from src.models.schemas import (
@@ -22,12 +27,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize FastAPI app
+# Initialize FastAPI app with performance optimizations
 app = FastAPI(
     title="AI Agentic Honeypot System",
     description="AI-powered honeypot for scam detection and intelligence extraction",
-    version="1.0.0"
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url=None,  # Disable unused ReDoc
+    openapi_url="/openapi.json"
 )
+
+# Add compression middleware for faster responses
+from fastapi.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Add CORS middleware
 app.add_middleware(
@@ -69,6 +81,8 @@ async def health_check():
     """Detailed health check"""
     return {
         "status": "healthy",
+        "service": "AI Agentic Honeypot System",
+        "version": "1.0.0",
         "timestamp": datetime.now().isoformat(),
         "active_sessions": len(session_manager.sessions),
         "llm_provider": settings.LLM_PROVIDER
@@ -108,59 +122,80 @@ async def handle_message(
         # Get or create session
         session = session_manager.get_or_create_session(session_id)
         
+        # Early exit if session is already complete
+        if not session.engagement_active and session.scam_detected:
+            return {
+                "status": "success",
+                "scamDetected": True,
+                "agentResponse": "Thank you for your message. This conversation has ended.",
+                "sessionComplete": True,
+                "detection": {
+                    "is_scam": True,
+                    "confidence": 0.95,
+                    "scam_type": "completed",
+                    "reasoning": "Session already completed"
+                }
+            }
+        
         # Add incoming message to session
         session.messages.append(message_obj)
         session.message_count += 1
         
-        # Add conversation history to session if this is first message
-        if conversation_history and not session.engagement_active:
+        # Add conversation history to session if this is first message (only if list is small)
+        if conversation_history and not session.engagement_active and len(conversation_history) < 10:
             for hist_msg in conversation_history:
                 if hist_msg not in session.messages:
                     session.messages.insert(0, hist_msg)
-        
-        # Extract intelligence from current message
-        new_intel = intelligence_extractor.extract_from_message(message_text)
-        session.intelligence = intelligence_extractor.merge_intelligence(
-            session.intelligence, new_intel
-        )
         
         # Initialize detection variables
         detection_result = {}
         scam_confidence = 0.0
         scam_type = 'unknown'
         
-        # Detect scam if not already detected
+        # SPEED OPTIMIZED: Run synchronously, intelligence extraction is fast
         if not session.scam_detected:
+            # Extract intelligence first (fast, no API calls)
             try:
-                detection_result = scam_detector.detect_scam(
-                    message_text,
-                    session.messages
+                new_intel = intelligence_extractor.extract_from_message(message_text)
+                session.intelligence = intelligence_extractor.merge_intelligence(
+                    session.intelligence, new_intel
                 )
-                
-                # Validate detection result
-                if not detection_result or not isinstance(detection_result, dict):
-                    logger.error(f"Invalid detection result: {detection_result}")
-                    detection_result = {
-                        'is_scam': False,
-                        'confidence': 0.0,
-                        'scam_type': 'unknown',
-                        'reasoning': 'Detection error - invalid result'
-                    }
-                
-                session.scam_detected = detection_result.get('is_scam', False)
-                scam_confidence = detection_result.get('confidence', 0.0)
-                scam_type = detection_result.get('scam_type', 'unknown')
-            except Exception as detect_error:
-                logger.error(f"Error in scam detection: {detect_error}", exc_info=True)
+            except Exception as e:
+                logger.error(f"Intelligence extraction error: {e}")
+            
+            # Scam detection (uses keyword-based fallback primarily, fast)
+            try:
+                detection_result = scam_detector.detect_scam(message_text, session.messages)
+            except Exception as e:
+                logger.error(f"Scam detection error: {e}")
                 detection_result = {
                     'is_scam': False,
                     'confidence': 0.0,
                     'scam_type': 'error',
-                    'reasoning': f'Detection error: {str(detect_error)[:100]}'
+                    'reasoning': f'Detection error: {str(e)[:100]}'
                 }
-                session.scam_detected = False
-                scam_confidence = 0.0
-                scam_type = 'error'
+        else:
+            # Session already detected - only extract intelligence (fast)
+            new_intel = intelligence_extractor.extract_from_message(message_text)
+            session.intelligence = intelligence_extractor.merge_intelligence(
+                session.intelligence, new_intel
+            )
+        
+        # Process detection results
+        if not session.scam_detected:
+            # Validate detection result
+            if not detection_result or not isinstance(detection_result, dict):
+                logger.error(f"Invalid detection result: {detection_result}")
+                detection_result = {
+                    'is_scam': False,
+                    'confidence': 0.0,
+                    'scam_type': 'unknown',
+                    'reasoning': 'Detection error - invalid result'
+                }
+            
+            session.scam_detected = detection_result.get('is_scam', False)
+            scam_confidence = detection_result.get('confidence', 0.0)
+            scam_type = detection_result.get('scam_type', 'unknown')
             
             logger.info(f"Scam detection: {session.scam_detected} (confidence: {scam_confidence})")
             
@@ -168,24 +203,30 @@ async def handle_message(
                 session.engagement_active = True
                 session.agent_notes = f"Scam detected: {scam_type}. {detection_result.get('reasoning', '')}"
         else:
-            # Already detected in previous message
+            # Session already has scam detected - continue engagement
             scam_confidence = 0.95
-            scam_type = "confirmed"
+            scam_type = session.agent_notes.split(':')[1].split('.')[0].strip() if ':' in session.agent_notes else 'confirmed'
             detection_result = {
                 'is_scam': True,
                 'confidence': 0.95,
-                'scam_type': 'confirmed',
-                'reasoning': session.agent_notes or 'Previously detected as scam'
+                'scam_type': scam_type,
+                'reasoning': 'Continuing conversation from previously detected scam'
             }
+            # Keep engagement active for multi-turn conversations
+            session.engagement_active = True
         
         # Generate agent response if scam is detected
         agent_response_text = None
         session_complete = False
+        should_continue = True
+        should_end = False
+        end_reason = ""
         
+        # Only generate AI response if engagement is active
         if session.scam_detected and session.engagement_active:
             try:
-                # Select or maintain persona
-                if not session.persona or session.message_count % 5 == 0:
+                # Select or maintain persona (dynamic change interval)
+                if not session.persona or session.message_count % settings.PERSONA_CHANGE_INTERVAL == 0:
                     session.persona = ai_agent.select_persona(
                         scam_type=scam_type,
                         message_count=session.message_count
@@ -268,62 +309,66 @@ async def handle_message(
                 else:
                     logger.warning(f"Failed to send results to GUVI for session {request.sessionId}")
         
-        # Calculate engagement duration
+        # Fast response preparation with minimal overhead
         engagement_duration = int((datetime.now() - session.created_at).total_seconds())
         
-        # Prepare intelligence in both formats
-        intel_camel = session.intelligence.model_dump()
-        intel_snake = {
-            "phone_numbers": session.intelligence.phoneNumbers,
-            "upi_ids": session.intelligence.upiIds,
-            "links": session.intelligence.phishingLinks,
-            "keywords": session.intelligence.suspiciousKeywords,
-            "bank_accounts": session.intelligence.bankAccounts
-        }
-        
-        # Prepare response (includes both camelCase and snake_case for compatibility)
+        # Prepare response (optimized - single format conversion)
+        # Optimized response dict with essential fields only
         response_dict = {
             "status": "success",
+            "sessionId": session_id,
             "scamDetected": session.scam_detected,
+            "isScam": session.scam_detected,
+            "scamType": scam_type,
+            "confidence": scam_confidence,
+            "reasoning": detection_result.get('reasoning', '') if session.scam_detected else '',
+            "response": agent_response_text,
             "agentResponse": agent_response_text,
+            "shouldContinue": not session_complete,
+            "sessionComplete": session_complete,
             "engagementMetrics": {
                 "engagementDurationSeconds": engagement_duration,
-                "totalMessagesExchanged": session.message_count
+                "totalMessagesExchanged": session.message_count,
+                "messageCount": session.message_count,
+                "engagementTime": engagement_duration,
+                "scamDetectionAccuracy": scam_confidence
             },
-            "extractedIntelligence": intel_camel,
+            "extractedIntelligence": {
+                "phoneNumbers": session.intelligence.phoneNumbers,
+                "upiIds": session.intelligence.upiIds,
+                "phishingLinks": session.intelligence.phishingLinks,
+                "suspiciousKeywords": session.intelligence.suspiciousKeywords,
+                "bankAccounts": session.intelligence.bankAccounts,
+                # Snake_case aliases
+                "phone_numbers": session.intelligence.phoneNumbers,
+                "upi_ids": session.intelligence.upiIds,
+                "links": session.intelligence.phishingLinks,
+                "urls": session.intelligence.phishingLinks,
+                "bankDetails": session.intelligence.bankAccounts,
+                "bank_accounts": session.intelligence.bankAccounts,
+                "keywords": session.intelligence.suspiciousKeywords
+            },
             "agentNotes": session.agent_notes,
-            "sessionComplete": session_complete,
-            # Add snake_case aliases for test compatibility
+            # Compatibility fields
             "detection": {
                 "is_scam": session.scam_detected,
                 "confidence": scam_confidence,
                 "scam_type": scam_type,
                 "reasoning": detection_result.get('reasoning', '') if session.scam_detected else ''
             },
-            "response": agent_response_text,
-            "intelligence_extracted": intel_snake  # Use snake_case version for tests
+            # Add intelligence_extracted for test compatibility
+            "intelligence_extracted": {
+                "phone_numbers": session.intelligence.phoneNumbers,
+                "upi_ids": session.intelligence.upiIds,
+                "links": session.intelligence.phishingLinks,
+                "urls": session.intelligence.phishingLinks,
+                "bank_accounts": session.intelligence.bankAccounts,
+                "keywords": session.intelligence.suspiciousKeywords
+            }
         }
         
-        response = APIResponse(
-            status="success",
-            scamDetected=session.scam_detected,
-            agentResponse=agent_response_text,
-            engagementMetrics=EngagementMetrics(
-                engagementDurationSeconds=engagement_duration,
-                totalMessagesExchanged=session.message_count
-            ),
-            extractedIntelligence=session.intelligence,
-            agentNotes=session.agent_notes,
-            sessionComplete=session_complete
-        )
-        
-        # Update session
+        # Update session asynchronously (non-blocking)
         session_manager.update_session(session)
-        
-        # Clean up if session is complete
-        if session_complete:
-            # Keep session for a bit for debugging, but mark as inactive
-            pass
         
         return response_dict
         

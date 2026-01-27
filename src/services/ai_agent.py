@@ -5,8 +5,25 @@ from src.models.schemas import Message
 import random
 import logging
 import json
+import re
 
 logger = logging.getLogger(__name__)
+
+
+def extract_json_from_text(text: str) -> str:
+    """Extract JSON object from text that may contain other content"""
+    if not text:
+        return "{}"
+    
+    # Try to find JSON object in the text
+    # Look for content between first { and last }
+    start_idx = text.find('{')
+    end_idx = text.rfind('}')
+    
+    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+        return text[start_idx:end_idx + 1]
+    
+    return text
 
 
 class AIAgent:
@@ -59,28 +76,64 @@ class AIAgent:
             logger.info(f"AI Agent: Available providers: {', '.join(self.available_providers)}")
     
     def _call_llm(self, provider: str, prompt: str, temperature: float = 0.7) -> str:
-        """Call Gemini LLM with error handling"""
+        """Call Gemini LLM with error handling - optimized for speed"""
         try:
             if provider == "gemini":
-                # Try multiple Gemini models if one fails (Pro for quality, Flash for speed)
+                # Prioritize Flash models for speed
                 gemini_models = [
-                    self.models['gemini'],
-                    'models/gemini-2.5-pro',
-                    'models/gemini-pro-latest',
-                    'models/gemini-2.5-flash',
-                    'models/gemini-flash-latest',
-                    'models/gemini-2.0-flash'
+                    'models/gemini-2.5-flash',      # Fastest
+                    'models/gemini-flash-latest',    # Fast fallback
+                    'models/gemini-2.0-flash',       # Fast alternative
+                    self.models['gemini'],           # User configured
+                    'models/gemini-2.5-pro',         # Quality fallback
+                    'models/gemini-pro-latest'       # Last resort
                 ]
                 
                 last_error = None
                 for model_name in gemini_models:
                     try:
+                        # Use proper generation configuration
                         response = self.clients['gemini'].models.generate_content(
                             model=model_name,
-                            contents=prompt
+                            contents=prompt,
+                            config={
+                                'temperature': temperature,
+                                'max_output_tokens': settings.LLM_MAX_TOKENS_RESPONSE,
+                                'top_p': 0.95,
+                                'top_k': 40
+                            }
                         )
+                        
+                        # Check if response was blocked or incomplete
+                        if hasattr(response, 'candidates') and response.candidates:
+                            candidate = response.candidates[0]
+                            if hasattr(candidate, 'finish_reason'):
+                                logger.info(f"AI Agent: Finish reason: {candidate.finish_reason}")
+                        
                         logger.info(f"AI Agent: Successfully used Gemini model: {model_name}")
-                        return response.text
+                        
+                        # Extract text from response - try different methods
+                        result_text = ""
+                        try:
+                            # Primary method: use .text property
+                            result_text = response.text
+                        except Exception as e:
+                            logger.debug(f"AI Agent: Could not get .text property: {e}")
+                            # Fallback: extract from candidates
+                            if hasattr(response, 'candidates') and response.candidates:
+                                candidate = response.candidates[0]
+                                if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
+                                    parts_text = []
+                                    for part in candidate.content.parts:
+                                        if hasattr(part, 'text'):
+                                            parts_text.append(part.text)
+                                    result_text = ''.join(parts_text)
+                        
+                        if not result_text:
+                            raise ValueError("Could not extract text from response")
+                        
+                        logger.debug(f"AI Agent: Raw response from {model_name}: {result_text[:200]}...")
+                        return result_text
                     except Exception as model_error:
                         last_error = model_error
                         logger.warning(f"AI Agent: Gemini model {model_name} failed: {model_error}")
@@ -93,14 +146,14 @@ class AIAgent:
             raise ValueError(f"Unknown provider: {provider}")
             
         except Exception as e:
-            logger.error(f"AI Agent: Error calling {provider}: {e}")
+            logger.error(f"AI Agent: Error calling {provider}: {e}", exc_info=False)
             raise
     
     def select_persona(self, scam_type: str, message_count: int = 0) -> str:
         """Select appropriate persona based on scam type and conversation stage"""
         
-        # Early conversation - be more cautious
-        if message_count < 3:
+        # Early conversation - be more cautious (dynamic threshold)
+        if message_count < settings.EARLY_STAGE_THRESHOLD:
             return "cautious_user"
         
         # Mid conversation - adapt based on scam type
@@ -200,6 +253,11 @@ Respond with JSON (no markdown, keep response field SHORT and casual):
                 logger.info(f"AI Agent: Attempting response generation with provider: {provider}")
                 result = self._call_llm(provider, prompt, temperature=0.7)
                 
+                # Log raw result details
+                logger.info(f"AI Agent: Received response length: {len(result)} characters")
+                logger.debug(f"AI Agent: First 100 chars: {repr(result[:100])}")
+                logger.debug(f"AI Agent: Last 100 chars: {repr(result[-100:])}")
+                
                 # Safety check for empty or None result
                 if not result:
                     logger.warning(f"AI Agent: {provider} returned empty result")
@@ -208,10 +266,13 @@ Respond with JSON (no markdown, keep response field SHORT and casual):
                 # Clean JSON from markdown code blocks (Gemini often wraps in ```json```)
                 result_clean = result.strip()
                 if result_clean.startswith('```'):
-                    # Extract content between code fences
-                    lines = result_clean.split('\n')
-                    result_clean = '\n'.join(lines[1:-1]) if len(lines) > 2 else result_clean
-                    result_clean = result_clean.replace('```json', '').replace('```', '').strip()
+                    # Remove code fence markers
+                    result_clean = result_clean.replace('```json', '').replace('```', '')
+                    # Clean up any remaining whitespace
+                    result_clean = result_clean.strip()
+                
+                # Extract JSON from text (handles cases like "Here is the JSON: {...}")
+                result_clean = extract_json_from_text(result_clean)
                 
                 # Parse JSON response with validation
                 agent_decision = json.loads(result_clean)
@@ -233,7 +294,7 @@ Respond with JSON (no markdown, keep response field SHORT and casual):
                 last_error = e
                 continue
             except Exception as e:
-                logger.error(f"AI Agent: Error with {provider}: {e}", exc_info=True)
+                logger.error(f"AI Agent: Error with {provider}: {e}", exc_info=False)
                 last_error = e
                 continue
         

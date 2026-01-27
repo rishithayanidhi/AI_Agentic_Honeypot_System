@@ -5,8 +5,25 @@ from src.models.schemas import Message
 import logging
 import json
 import hashlib
+import re
 
 logger = logging.getLogger(__name__)
+
+
+def extract_json_from_text(text: str) -> str:
+    """Extract JSON object from text that may contain other content"""
+    if not text:
+        return "{}"
+    
+    # Try to find JSON object in the text
+    # Look for content between first { and last }
+    start_idx = text.find('{')
+    end_idx = text.rfind('}')
+    
+    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+        return text[start_idx:end_idx + 1]
+    
+    return text
 
 
 class ScamDetector:
@@ -17,8 +34,8 @@ class ScamDetector:
         self.available_providers = []
         self.clients = {}
         self.models = {}
-        self.detection_cache = {}  # Simple in-memory cache for faster repeated detections
-        self.cache_max_size = 100  # Limit cache size
+        self.detection_cache = {}  # In-memory cache for faster repeated detections
+        self.cache_max_size = settings.CACHE_MAX_SIZE  # Dynamic cache size
         
         # Initialize all available providers dynamically
         self._initialize_providers()
@@ -55,28 +72,64 @@ class ScamDetector:
             logger.info(f"Available providers: {', '.join(self.available_providers)}")
     
     def _call_llm(self, provider: str, prompt: str) -> str:
-        """Call Gemini LLM with error handling"""
+        """Call Gemini LLM with error handling - optimized for speed"""
         try:
             if provider == "gemini":
-                # Try multiple Gemini models if one fails (Pro for quality, Flash for speed)
+                # Prioritize Flash models for speed, then fallback to Pro for quality
                 gemini_models = [
-                    self.models['gemini'],
-                    'models/gemini-2.5-pro',
-                    'models/gemini-pro-latest',
-                    'models/gemini-2.5-flash',
-                    'models/gemini-flash-latest',
-                    'models/gemini-2.0-flash'
+                    'models/gemini-2.5-flash',      # Fastest
+                    'models/gemini-flash-latest',    # Fast fallback
+                    'models/gemini-2.0-flash',       # Fast alternative
+                    self.models['gemini'],           # User configured
+                    'models/gemini-2.5-pro',         # Quality fallback
+                    'models/gemini-pro-latest'       # Last resort
                 ]
                 
                 last_error = None
                 for model_name in gemini_models:
                     try:
+                        # Use proper generation configuration
                         response = self.clients['gemini'].models.generate_content(
                             model=model_name,
-                            contents=prompt
+                            contents=prompt,
+                            config={
+                                'temperature': settings.LLM_TEMPERATURE_DETECTION,
+                                'max_output_tokens': settings.LLM_MAX_TOKENS_DETECTION,
+                                'top_p': 0.95,
+                                'top_k': 40
+                            }
                         )
+                        
+                        # Check if response was blocked or incomplete
+                        if hasattr(response, 'candidates') and response.candidates:
+                            candidate = response.candidates[0]
+                            if hasattr(candidate, 'finish_reason'):
+                                logger.info(f"Finish reason: {candidate.finish_reason}")
+                        
                         logger.info(f"Successfully used Gemini model: {model_name}")
-                        return response.text
+                        
+                        # Extract text from response - try different methods
+                        result_text = ""
+                        try:
+                            # Primary method: use .text property
+                            result_text = response.text
+                        except Exception as e:
+                            logger.debug(f"Could not get .text property: {e}")
+                            # Fallback: extract from candidates
+                            if hasattr(response, 'candidates') and response.candidates:
+                                candidate = response.candidates[0]
+                                if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
+                                    parts_text = []
+                                    for part in candidate.content.parts:
+                                        if hasattr(part, 'text'):
+                                            parts_text.append(part.text)
+                                    result_text = ''.join(parts_text)
+                        
+                        if not result_text:
+                            raise ValueError("Could not extract text from response")
+                        
+                        logger.debug(f"Raw response from {model_name}: {result_text[:200]}...")
+                        return result_text
                     except Exception as model_error:
                         last_error = model_error
                         logger.warning(f"Gemini model {model_name} failed: {model_error}")
@@ -144,10 +197,12 @@ Respond ONLY with a JSON object (no markdown):
 }}"""
 
         # Try Gemini, fallback to keywords if fails
+        # Try LLM first (fast with optimized tokens), fallback to keywords
         if not self.available_providers:
-            logger.warning("Gemini not available - using fallback detection")
+            logger.info("No LLM available - using keyword detection")
             return self._fallback_detection(message)
         
+        # Try LLM detection first
         providers_to_try = ['gemini'] if 'gemini' in self.available_providers else []
         
         last_error = None
@@ -156,13 +211,21 @@ Respond ONLY with a JSON object (no markdown):
                 logger.info(f"Attempting scam detection with provider: {provider}")
                 result = self._call_llm(provider, prompt)
                 
+                # Log raw result details
+                logger.info(f"Received response length: {len(result)} characters")
+                logger.debug(f"First 100 chars: {repr(result[:100])}")
+                logger.debug(f"Last 100 chars: {repr(result[-100:])}")
+                
                 # Clean JSON from markdown code blocks (Gemini often wraps in ```json```)
                 result_clean = result.strip()
                 if result_clean.startswith('```'):
-                    # Extract content between code fences
-                    lines = result_clean.split('\n')
-                    result_clean = '\n'.join(lines[1:-1]) if len(lines) > 2 else result_clean
-                    result_clean = result_clean.replace('```json', '').replace('```', '').strip()
+                    # Remove code fence markers
+                    result_clean = result_clean.replace('```json', '').replace('```', '')
+                    # Clean up any remaining whitespace
+                    result_clean = result_clean.strip()
+                
+                # Extract JSON from text (handles cases like "Here is the JSON: {...}")
+                result_clean = extract_json_from_text(result_clean)
                 
                 # Parse JSON response
                 detection_result = json.loads(result_clean)
@@ -174,7 +237,7 @@ Respond ONLY with a JSON object (no markdown):
                 return detection_result
                 
             except json.JSONDecodeError as e:
-                logger.error(f"JSON parse error from {provider}: {e}")
+                logger.error(f"JSON parse error from {provider}: {e}. Raw result: {result[:500] if result else 'None'}")
                 last_error = e
                 continue
             except Exception as e:
@@ -182,11 +245,13 @@ Respond ONLY with a JSON object (no markdown):
                 last_error = e
                 continue
         
-        # All providers failed - use fallback
+        # All LLM providers failed - use keyword-based fallback
         logger.warning(f"All LLM providers failed (last error: {last_error}) - using keyword-based fallback")
         fallback_result = self._fallback_detection(message)
         
         # Cache fallback result too (for repeated messages)
+        self._add_to_cache(message, fallback_result)
+        return fallback_result
         self._add_to_cache(message, fallback_result)
         
         return fallback_result
@@ -252,27 +317,27 @@ Respond ONLY with a JSON object (no markdown):
         
         if lottery_score >= 2:
             scam_type = 'fake_offer'
-            type_confidence = min(lottery_score * 0.3, 0.95)
+            type_confidence = min(lottery_score * settings.LOTTERY_CONFIDENCE_MULTIPLIER, settings.MAX_CONFIDENCE)
             total_score += lottery_score
         elif bank_score >= 2 or (sensitive_score > 0 and threat_score > 0):
             # OTP + threat OR bank keywords = bank_fraud
             scam_type = 'bank_fraud'
-            type_confidence = min((bank_score + sensitive_score + threat_score) * 0.25, 0.95)
+            type_confidence = min((bank_score + sensitive_score + threat_score) * settings.BANK_FRAUD_CONFIDENCE_MULTIPLIER, settings.MAX_CONFIDENCE)
             total_score += bank_score
         elif upi_score >= 2:
             scam_type = 'upi_fraud'
-            type_confidence = min(upi_score * 0.3, 0.95)
+            type_confidence = min(upi_score * settings.UPI_CONFIDENCE_MULTIPLIER, settings.MAX_CONFIDENCE)
             total_score += upi_score
         elif (has_url or has_short_url) and phishing_score >= 2:
             scam_type = 'phishing'
-            type_confidence = min(phishing_score * 0.35, 0.95)
+            type_confidence = min(phishing_score * settings.PHISHING_CONFIDENCE_MULTIPLIER, settings.MAX_CONFIDENCE)
             total_score += phishing_score
         elif base_score >= 3:
             scam_type = 'potential_scam'
-            type_confidence = min(base_score * 0.25, 0.90)
+            type_confidence = min(base_score * settings.GENERIC_CONFIDENCE_MULTIPLIER, 0.90)
         
-        is_scam = total_score >= 2 or type_confidence >= 0.5
-        confidence = max(type_confidence, min(total_score * 0.2, 0.95)) if is_scam else min(total_score * 0.1, 0.4)
+        is_scam = total_score >= settings.SCAM_SCORE_THRESHOLD or type_confidence >= settings.SCAM_DETECTION_THRESHOLD
+        confidence = max(type_confidence, min(total_score * 0.2, settings.MAX_CONFIDENCE)) if is_scam else min(total_score * 0.1, settings.MIN_CONFIDENCE_NOT_SCAM)
         
         # Build reasoning
         indicators = []
