@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Comprehensive Testing Script for AI Scammer Detection Honeypot
 Tests all functionality like GUVI Hackathon judges would evaluate
@@ -197,7 +198,16 @@ def test_scam_detection():
                 if is_scam:
                     print_success(f"Scam detected with {confidence*100:.1f}% confidence")
                     print_result("Scam Type", scam_type)
-                    print_result("Reasoning", detection.get('reasoning', 'N/A')[:100] + "...")
+                    
+                    # Safely handle reasoning
+                    reasoning = detection.get('reasoning', 'N/A')
+                    if reasoning and reasoning != 'N/A':
+                        display_reasoning = str(reasoning)[:100]
+                        if len(str(reasoning)) > 100:
+                            display_reasoning += "..."
+                        print_result("Reasoning", display_reasoning)
+                    else:
+                        print_result("Reasoning", "N/A")
                 else:
                     print_error("Failed to detect scam")
                 
@@ -325,13 +335,22 @@ def test_conversation_flow():
             
             if response.status_code == 200:
                 data = response.json()
-                ai_response = data.get('response', 'No response')
-                print_result("AI Response", ai_response[:200] + "...")
+                ai_response = data.get('response') or data.get('agentResponse') or 'No response'
+                
+                # Safely handle None or empty responses
+                if ai_response and ai_response != 'No response':
+                    display_text = str(ai_response)[:200]
+                    if len(str(ai_response)) > 200:
+                        display_text += "..."
+                    print_result("AI Response", display_text)
+                else:
+                    print_info("No AI response (might be session ended or quota exhausted)")
                 
                 # Check session info
                 session_info = data.get('session_info', {})
                 message_count = session_info.get('message_count', 0)
-                print_info(f"Total messages in session: {message_count}")
+                if message_count > 0:
+                    print_info(f"Total messages in session: {message_count}")
                 
             else:
                 print_error(f"Failed with status {response.status_code}")
@@ -421,19 +440,31 @@ def test_ai_personas():
             
             if response.status_code == 200:
                 data = response.json()
-                ai_response = data.get('response', '')
-                print_result("AI Response", ai_response[:200] + "...")
+                ai_response = data.get('response') or data.get('agentResponse') or ''
                 
-                # Analyze response characteristics
-                if any(word in ai_response.lower() for word in ['what', 'how', 'confused', 'understand']):
-                    print_info("Persona shows confusion/questioning (Good!)")
-                if any(word in ai_response.lower() for word in ['worried', 'concerned', 'help']):
-                    print_info("Persona shows concern (Good!)")
+                # Safely display response
+                if ai_response:
+                    display_text = str(ai_response)[:200]
+                    if len(str(ai_response)) > 200:
+                        display_text += "..."
+                    print_result("AI Response", display_text)
+                    
+                    # Analyze response characteristics
+                    response_lower = ai_response.lower()
+                    if any(word in response_lower for word in ['what', 'how', 'confused', 'understand']):
+                        print_info("Persona shows confusion/questioning (Good!)")
+                    if any(word in response_lower for word in ['worried', 'concerned', 'help']):
+                        print_info("Persona shows concern (Good!)")
+                else:
+                    print_info("No AI response generated")
                 
             else:
                 print_error(f"Failed with status {response.status_code}")
         except Exception as e:
             print_error(f"Error: {str(e)}")
+            import traceback
+            if "subscriptable" in str(e):
+                print_error(f"Full error: {traceback.format_exc()}")
         
         time.sleep(2)
 

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Quick test for AI Agent Persona functionality with error handling
 """

@@ -1,8 +1,21 @@
 """
 Test script to verify dynamic LLM model selection works
 """
+# -*- coding: utf-8 -*-
 import sys
+import os
 import logging
+import warnings
+
+# Suppress Pydantic warnings from google-genai library
+warnings.filterwarnings("ignore", category=UserWarning, module="pydantic._internal._fields")
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# Change working directory to project root so .env can be found
+os.chdir(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from src.services.scam_detector import ScamDetector
 from src.services.ai_agent import AIAgent
 

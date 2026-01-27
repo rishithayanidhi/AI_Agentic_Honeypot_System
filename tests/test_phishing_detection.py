@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Quick test for phishing link detection"""
 import requests
 
