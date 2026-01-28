@@ -261,6 +261,7 @@ Respond ONLY with a JSON object (no markdown):
         import re
         
         message_lower = message.lower()
+        logger.info(f"🔍 ANALYZING MESSAGE: '{message[:100]}...'")
         
         # Category-specific keyword patterns for intelligent classification
         bank_fraud_keywords = ['bank', 'account', 'customer', 'account blocked', 'account suspended', 'kyc', 'ifsc', 'atm', 'debit card', 'credit card', 'sbi', 'hdfc', 'icici', 'axis', 'verify your identity']
@@ -282,6 +283,8 @@ Respond ONLY with a JSON object (no markdown):
         threat_score = sum(1 for kw in threat_keywords if kw in message_lower)
         sensitive_score = sum(1 for kw in sensitive_keywords if kw in message_lower)
         
+        logger.info(f"📊 KEYWORD SCORES: Bank={bank_score}, UPI={upi_score}, Phishing={phishing_score}, Lottery={lottery_score}, Urgency={urgency_score}, Threat={threat_score}, Sensitive={sensitive_score}")
+        
         # Check for URLs and links (strong phishing indicator)
         has_url = bool(re.search(r'http[s]?://[^\s]+', message))
         has_short_url = bool(re.search(r'\b(?:bit\.ly|tinyurl|goo\.gl|ow\.ly|short\.link|t\.co)/[a-zA-Z0-9\-_]+', message, re.IGNORECASE))
@@ -289,6 +292,9 @@ Respond ONLY with a JSON object (no markdown):
         
         # Phone number patterns (Indian format)
         has_phone = bool(re.search(r'(?:\+91|91)?[6-9]\d{9}', message))
+        
+        if has_url or has_short_url or has_suspicious_link or has_phone:
+            logger.info(f"🔗 PATTERNS FOUND: URL={has_url}, ShortURL={has_short_url}, SuspiciousLink={has_suspicious_link}, Phone={has_phone}")
         
         # Calculate base score
         base_score = urgency_score + threat_score + sensitive_score
@@ -337,6 +343,12 @@ Respond ONLY with a JSON object (no markdown):
             type_confidence = min(base_score * settings.GENERIC_CONFIDENCE_MULTIPLIER, 0.90)
         
         is_scam = total_score >= settings.SCAM_SCORE_THRESHOLD or type_confidence >= settings.SCAM_DETECTION_THRESHOLD
+        
+        # Detailed result logging
+        if is_scam:
+            logger.warning(f"🚨 SCAM DETECTED! Type: {scam_type}, Confidence: {type_confidence:.0%}, Total Score: {total_score}")
+        else:
+            logger.info(f"✅ NOT A SCAM. Total Score: {total_score} (threshold: {settings.SCAM_SCORE_THRESHOLD})")
         confidence = max(type_confidence, min(total_score * 0.2, settings.MAX_CONFIDENCE)) if is_scam else min(total_score * 0.1, settings.MIN_CONFIDENCE_NOT_SCAM)
         
         # Build reasoning
