@@ -102,7 +102,7 @@ async def handle_message(
         # Handle both request formats
         if isinstance(request, SimpleIncomingRequest):
             # Convert simple format to full format
-            session_id = request.session_id
+            session_id = request.session_id or f"auto-{datetime.now().timestamp()}"
             message_text = request.message
             message_obj = Message(
                 sender="scammer",

@@ -19,8 +19,11 @@ class Metadata(BaseModel):
 
 class SimpleIncomingRequest(BaseModel):
     """Simplified incoming API request structure (for testing)"""
-    session_id: str
+    session_id: Optional[str] = Field(default=None, alias="sessionId")
     message: str
+    
+    class Config:
+        populate_by_name = True  # Allow both session_id and sessionId
 
 
 class IncomingRequest(BaseModel):
