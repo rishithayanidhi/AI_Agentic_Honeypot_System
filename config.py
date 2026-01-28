@@ -40,8 +40,8 @@ class Settings(BaseSettings):
     
     # Performance Configuration (OPTIMIZED FOR SPEED)
     CACHE_MAX_SIZE: int = 500  # Increased cache for more hits
-    LLM_MAX_TOKENS_DETECTION: int = 300  # Reduced for speed
-    LLM_MAX_TOKENS_RESPONSE: int = 150   # Reduced for speed
+    LLM_MAX_TOKENS_DETECTION: int = 500  # Balanced for completeness and speed
+    LLM_MAX_TOKENS_RESPONSE: int = 300   # Balanced for completeness and speed
     LLM_TEMPERATURE_DETECTION: float = 0.1
     LLM_TEMPERATURE_RESPONSE: float = 0.7
     LLM_REQUEST_TIMEOUT: int = 5  # Reduced timeout for faster failures
