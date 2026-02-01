@@ -1,5 +1,6 @@
 from typing import List, Optional, Dict, Any
 from google import genai
+from anthropic import Anthropic
 from config import settings
 from src.models.schemas import Message
 import random
@@ -59,8 +60,18 @@ class AIAgent:
         self._initialize_providers()
     
     def _initialize_providers(self):
-        """Initialize Gemini LLM provider"""
-        # Try Gemini
+        """Initialize LLM providers (Claude Haiku 4.5, Gemini)"""
+        # Try Anthropic (Claude Haiku 4.5) - Primary
+        try:
+            if settings.ANTHROPIC_API_KEY and settings.ANTHROPIC_API_KEY != "your-anthropic-api-key-here":
+                self.clients['anthropic'] = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+                self.models['anthropic'] = settings.ANTHROPIC_MODEL
+                self.available_providers.append('anthropic')
+                logger.info(f"🚀 AI Agent: Claude Haiku 4.5 initialized with model: {settings.ANTHROPIC_MODEL}")
+        except Exception as e:
+            logger.warning(f"AI Agent: Failed to initialize Claude: {e}")
+        
+        # Try Gemini - Fallback
         try:
             if settings.GOOGLE_API_KEY and settings.GOOGLE_API_KEY != "your-google-api-key-here":
                 self.clients['gemini'] = genai.Client(api_key=settings.GOOGLE_API_KEY)
@@ -71,14 +82,30 @@ class AIAgent:
             logger.warning(f"AI Agent: Failed to initialize Gemini: {e}")
         
         if not self.available_providers:
-            logger.warning("AI Agent: Gemini not available - will use fallback responses only")
+            logger.warning("AI Agent: No LLM providers available - will use fallback responses only")
         else:
-            logger.info(f"AI Agent: Available providers: {', '.join(self.available_providers)}")
+            logger.info(f"✅ AI Agent: Available providers: {', '.join(self.available_providers)}")
     
     def _call_llm(self, provider: str, prompt: str, temperature: float = 0.7) -> str:
-        """Call Gemini LLM with error handling - optimized for speed"""
+        """Call LLM (Claude Haiku 4.5 or Gemini) with error handling - optimized for speed"""
         try:
-            if provider == "gemini":
+            if provider == "anthropic":
+                # Claude Haiku 4.5 - Ultra fast and cost-effective
+                response = self.clients['anthropic'].messages.create(
+                    model=self.models['anthropic'],
+                    max_tokens=settings.LLM_MAX_TOKENS_RESPONSE,
+                    temperature=temperature,
+                    messages=[
+                        {"role": "user", "content": prompt}
+                    ]
+                )
+                
+                result_text = response.content[0].text
+                logger.info(f"🚀 AI Agent: Successfully used Claude Haiku 4.5")
+                logger.debug(f"AI Agent: Claude response: {result_text[:200]}...")
+                return result_text
+            
+            elif provider == "gemini":
                 # Prioritize Flash models for speed
                 gemini_models = [
                     'models/gemini-2.5-flash',      # Fastest

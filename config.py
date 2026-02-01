@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     
     # LLM Configuration
-    LLM_PROVIDER: str = "gemini"  # openai, anthropic, or gemini
+    LLM_PROVIDER: str = "anthropic"  # openai, anthropic, or gemini
     
     # Gemini Configuration
     GOOGLE_API_KEY: Optional[str] = None
@@ -21,9 +21,9 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_MODEL: str = "gpt-4-turbo-preview"
     
-    # Anthropic Configuration
+    # Anthropic Configuration (Claude Haiku 4.5)
     ANTHROPIC_API_KEY: Optional[str] = None
-    ANTHROPIC_MODEL: str = "claude-3-sonnet-20240229"
+    ANTHROPIC_MODEL: str = "claude-haiku-4.5-20250110"
     
     # GUVI Configuration
     GUVI_CALLBACK_URL: str = "https://hackathon.guvi.in/api/updateHoneyPotFinalResult"

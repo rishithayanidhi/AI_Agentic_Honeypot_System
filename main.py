@@ -1,5 +1,7 @@
-from fastapi import FastAPI, HTTPException, Security, Depends
+from fastapi import FastAPI, HTTPException, Security, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from datetime import datetime
 import logging
 import asyncio
@@ -66,6 +68,23 @@ ai_agent = AIAgent()
 intelligence_extractor = IntelligenceExtractor()
 
 
+# Add validation error handler for better debugging
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Log and return detailed validation errors"""
+    logger.error(f"Validation error for {request.url.path}")
+    logger.error(f"Request body: {await request.body()}")
+    logger.error(f"Validation errors: {exc.errors()}")
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": exc.errors(),
+            "body": str(await request.body()),
+            "message": "Request validation failed. Check the required fields."
+        }
+    )
+
+
 @app.get("/")
 async def root():
     """Health check endpoint"""
@@ -99,6 +118,8 @@ async def handle_message(
     Accepts both full format (with Message object) and simple format (with string)
     """
     try:
+        logger.info(f"Received request type: {type(request).__name__}")
+        logger.info(f"Request data: {request.model_dump()}")
         # Handle both request formats
         if isinstance(request, SimpleIncomingRequest):
             # Convert simple format to full format
