@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
 
@@ -7,7 +7,16 @@ class Message(BaseModel):
     """Represents a single message in the conversation"""
     sender: str  # "scammer" or "user"
     text: str
-    timestamp: str
+    timestamp: Union[str, int]  # Accept both string and integer timestamps
+    
+    @field_validator('timestamp', mode='before')
+    @classmethod
+    def convert_timestamp(cls, v):
+        """Convert integer timestamp to ISO string format"""
+        if isinstance(v, int):
+            # Convert milliseconds timestamp to ISO format
+            return datetime.fromtimestamp(v / 1000).isoformat()
+        return v
 
 
 class Metadata(BaseModel):
