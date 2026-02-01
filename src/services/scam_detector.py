@@ -223,14 +223,19 @@ Respond ONLY with a JSON object (no markdown):
   "key_indicators": ["indicator1", "indicator2"]
 }}"""
 
-        # Try Gemini, fallback to keywords if fails
-        # Try LLM first (fast with optimized tokens), fallback to keywords
+        # Try LLM first (respects LLM_PROVIDER setting), fallback to keywords
         if not self.available_providers:
             logger.info("No LLM available - using keyword detection")
             return self._fallback_detection(message)
         
-        # Try LLM detection first
-        providers_to_try = ['gemini'] if 'gemini' in self.available_providers else []
+        # Try primary provider first, then fallback to other available providers
+        providers_to_try = []
+        if self.primary_provider in self.available_providers:
+            providers_to_try.append(self.primary_provider)
+        # Add other providers as fallback
+        for p in self.available_providers:
+            if p not in providers_to_try:
+                providers_to_try.append(p)
         
         last_error = None
         for provider in providers_to_try:

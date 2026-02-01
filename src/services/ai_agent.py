@@ -268,11 +268,17 @@ Respond with JSON (no markdown, keep response field SHORT and casual):
 
         # Try each available provider until one succeeds
         if not self.available_providers:
-            logger.warning("AI Agent: Gemini not available - using fallback response")
+            logger.warning("AI Agent: No LLM providers available - using fallback response")
             return self._fallback_response(scammer_message, message_count)
         
-        # Try Gemini, fallback to simple responses if fails
-        providers_to_try = ['gemini'] if 'gemini' in self.available_providers else []
+        # Try primary provider first, then fallback to other available providers
+        providers_to_try = []
+        if self.primary_provider in self.available_providers:
+            providers_to_try.append(self.primary_provider)
+        # Add other providers as fallback
+        for p in self.available_providers:
+            if p not in providers_to_try:
+                providers_to_try.append(p)
         
         last_error = None
         for provider in providers_to_try:
