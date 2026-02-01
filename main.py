@@ -359,60 +359,38 @@ async def handle_message(
         # Fast response preparation with minimal overhead
         engagement_duration = int((datetime.now() - session.created_at).total_seconds())
         
-        # Prepare response (optimized - single format conversion)
-        # Optimized response dict with essential fields only
+        # Prepare response according to GUVI specification
+        # Primary format: simple {"status": "success", "reply": "agent response"}
         response_dict = {
             "status": "success",
-            "sessionId": session_id,
-            "scamDetected": session.scam_detected,
-            "isScam": session.scam_detected,
-            "scamType": scam_type,
-            "confidence": scam_confidence,
-            "reasoning": detection_result.get('reasoning', '') if session.scam_detected else '',
-            "response": agent_response_text,
-            "agentResponse": agent_response_text,
-            "shouldContinue": not session_complete,
-            "sessionComplete": session_complete,
-            "engagementMetrics": {
-                "engagementDurationSeconds": engagement_duration,
-                "totalMessagesExchanged": session.message_count,
-                "messageCount": session.message_count,
-                "engagementTime": engagement_duration,
-                "scamDetectionAccuracy": scam_confidence
-            },
-            "extractedIntelligence": {
-                "phoneNumbers": session.intelligence.phoneNumbers,
-                "upiIds": session.intelligence.upiIds,
-                "phishingLinks": session.intelligence.phishingLinks,
-                "suspiciousKeywords": session.intelligence.suspiciousKeywords,
-                "bankAccounts": session.intelligence.bankAccounts,
-                # Snake_case aliases
-                "phone_numbers": session.intelligence.phoneNumbers,
-                "upi_ids": session.intelligence.upiIds,
-                "links": session.intelligence.phishingLinks,
-                "urls": session.intelligence.phishingLinks,
-                "bankDetails": session.intelligence.bankAccounts,
-                "bank_accounts": session.intelligence.bankAccounts,
-                "keywords": session.intelligence.suspiciousKeywords
-            },
-            "agentNotes": session.agent_notes,
-            # Compatibility fields
-            "detection": {
-                "is_scam": session.scam_detected,
-                "confidence": scam_confidence,
-                "scam_type": scam_type,
-                "reasoning": detection_result.get('reasoning', '') if session.scam_detected else ''
-            },
-            # Add intelligence_extracted for test compatibility
-            "intelligence_extracted": {
-                "phone_numbers": session.intelligence.phoneNumbers,
-                "upi_ids": session.intelligence.upiIds,
-                "links": session.intelligence.phishingLinks,
-                "urls": session.intelligence.phishingLinks,
-                "bank_accounts": session.intelligence.bankAccounts,
-                "keywords": session.intelligence.suspiciousKeywords
-            }
+            "reply": agent_response_text if agent_response_text else "I see. Can you tell me more?"
         }
+        
+        # Add optional detailed fields for debugging/monitoring (won't affect competition evaluation)
+        if settings.INCLUDE_DEBUG_INFO:
+            response_dict.update({
+                "sessionId": session_id,
+                "scamDetected": session.scam_detected,
+                "sessionComplete": session_complete,
+                "engagementMetrics": {
+                    "totalMessagesExchanged": session.message_count,
+                    "engagementDurationSeconds": engagement_duration,
+                    "scamDetectionAccuracy": scam_confidence
+                },
+                "extractedIntelligence": {
+                    "phoneNumbers": session.intelligence.phoneNumbers,
+                    "upiIds": session.intelligence.upiIds,
+                    "phishingLinks": session.intelligence.phishingLinks,
+                    "suspiciousKeywords": session.intelligence.suspiciousKeywords,
+                    "bankAccounts": session.intelligence.bankAccounts
+                },
+                "detection": {
+                    "is_scam": session.scam_detected,
+                    "confidence": scam_confidence,
+                    "scam_type": scam_type,
+                    "reasoning": detection_result.get('reasoning', '') if session.scam_detected else ''
+                }
+            })
         
         # Update session asynchronously (non-blocking)
         session_manager.update_session(session)

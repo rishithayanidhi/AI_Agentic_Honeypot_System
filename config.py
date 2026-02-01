@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     # GUVI Configuration
     GUVI_CALLBACK_URL: str = "https://hackathon.guvi.in/api/updateHoneyPotFinalResult"
     
+    # Response Configuration
+    INCLUDE_DEBUG_INFO: bool = False  # Set to True to include detailed debug fields in response
+    
     # Session Configuration
     SESSION_TIMEOUT_MINUTES: int = 30
     MAX_MESSAGES_PER_SESSION: int = 50
