@@ -121,9 +121,9 @@ class ScamDetector:
                             contents=prompt,
                             config={
                                 'temperature': settings.LLM_TEMPERATURE_DETECTION,
-                                'max_output_tokens': settings.LLM_MAX_TOKENS_DETECTION,
-                                'top_p': 0.95,
-                                'top_k': 40
+                                'maxOutputTokens': settings.LLM_MAX_TOKENS_DETECTION,
+                                'topP': 0.95,
+                                'topK': 40
                             }
                         )
                         

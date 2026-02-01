@@ -125,9 +125,9 @@ class AIAgent:
                             contents=prompt,
                             config={
                                 'temperature': temperature,
-                                'max_output_tokens': settings.LLM_MAX_TOKENS_RESPONSE,
-                                'top_p': 0.95,
-                                'top_k': 40
+                                'maxOutputTokens': settings.LLM_MAX_TOKENS_RESPONSE,
+                                'topP': 0.95,
+                                'topK': 40
                             }
                         )
                         
