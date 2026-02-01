@@ -87,6 +87,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 @app.get("/")
+@app.head("/")
 async def root():
     """Health check endpoint"""
     return {
@@ -97,6 +98,7 @@ async def root():
 
 
 @app.get("/health")
+@app.head("/health")
 async def health_check():
     """Detailed health check"""
     return {
