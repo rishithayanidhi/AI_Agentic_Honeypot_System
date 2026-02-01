@@ -26,6 +26,11 @@ class Metadata(BaseModel):
     locale: Optional[str] = "IN"
 
 
+class EmptyRequest(BaseModel):
+    """Accepts completely empty body for GUVI endpoint tester"""
+    pass
+
+
 class SimpleIncomingRequest(BaseModel):
     """Simplified incoming API request structure (for testing)"""
     session_id: Optional[str] = Field(default="test-session", alias="sessionId")

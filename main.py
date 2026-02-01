@@ -14,7 +14,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module="pydantic._intern
 
 from config import settings
 from src.models.schemas import (
-    IncomingRequest, SimpleIncomingRequest, APIResponse, EngagementMetrics, 
+    IncomingRequest, SimpleIncomingRequest, EmptyRequest, APIResponse, EngagementMetrics, 
     ExtractedIntelligence, Message
 )
 from src.services.session_manager import session_manager
@@ -171,18 +171,30 @@ async def health_check():
 
 @app.post("/api/message")
 async def handle_message(
-    request: Union[IncomingRequest, SimpleIncomingRequest],
+    request: Union[IncomingRequest, SimpleIncomingRequest, EmptyRequest],
     api_key: str = Depends(verify_api_key)
 ):
     """
     Main endpoint to handle incoming messages
     Accepts both full format (with Message object) and simple format (with string)
+    Also accepts empty body for GUVI endpoint tester validation
     """
     try:
         logger.info(f"Received request type: {type(request).__name__}")
         logger.info(f"Request data: {request.model_dump()}")
+        
+        # Handle empty request (GUVI tester)
+        if isinstance(request, EmptyRequest):
+            session_id = f"test-{datetime.now().timestamp()}"
+            message_text = "Hello, this is a test message"
+            message_obj = Message(
+                sender="scammer",
+                text=message_text,
+                timestamp=datetime.now().isoformat()
+            )
+            conversation_history = []
         # Handle both request formats
-        if isinstance(request, SimpleIncomingRequest):
+        elif isinstance(request, SimpleIncomingRequest):
             # Convert simple format to full format
             session_id = request.session_id or f"auto-{datetime.now().timestamp()}"
             message_text = request.message
