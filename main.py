@@ -82,27 +82,55 @@ intelligence_extractor = IntelligenceExtractor()
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Log and return detailed validation errors"""
-    logger.error(f"Validation error for {request.url.path}")
-    logger.error(f"Validation errors: {exc.errors()}")
+    logger.error(f"=" * 80)
+    logger.error(f"VALIDATION ERROR for {request.url.path}")
+    logger.error(f"Request method: {request.method}")
+    logger.error(f"Headers: {dict(request.headers)}")
     
-    # Create user-friendly error message
-    error_fields = [err['loc'][-1] for err in exc.errors() if 'loc' in err]
+    # Try to read the raw body
+    try:
+        body = await request.body()
+        logger.error(f"Raw body: {body.decode('utf-8')}")
+    except Exception as e:
+        logger.error(f"Could not read body: {e}")
+    
+    logger.error(f"Validation errors: {exc.errors()}")
+    logger.error(f"=" * 80)
+    
+    # Create detailed error messages
+    error_details = []
+    for err in exc.errors():
+        error_details.append({
+            "field": " -> ".join(str(loc) for loc in err.get('loc', [])),
+            "message": err.get('msg', ''),
+            "type": err.get('type', ''),
+            "input": err.get('input', 'N/A')
+        })
     
     return JSONResponse(
         status_code=422,
         content={
             "error": "INVALID_REQUEST_BODY",
-            "message": f"Required fields missing or invalid: {', '.join(error_fields)}",
-            "detail": exc.errors(),
-            "example_simple": {
-                "message": "Hello, I have a special offer for you"
-            },
-            "example_full": {
-                "sessionId": "session-123",
-                "message": {
-                    "sender": "scammer",
-                    "text": "Hello, I have a special offer for you",
-                    "timestamp": datetime.now().isoformat()
+            "message": "Request validation failed. See 'errors' field for details.",
+            "errors": error_details,
+            "raw_errors": exc.errors(),
+            "examples": {
+                "simple_format": {
+                    "message": "Hello, I have a special offer for you"
+                },
+                "full_format": {
+                    "sessionId": "session-123",
+                    "message": {
+                        "sender": "scammer",
+                        "text": "Hello, I have a special offer for you",
+                        "timestamp": "2026-02-01T10:00:00Z"
+                    },
+                    "conversationHistory": [],
+                    "metadata": {
+                        "channel": "SMS",
+                        "language": "English",
+                        "locale": "IN"
+                    }
                 }
             }
         }
