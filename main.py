@@ -85,11 +85,26 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     logger.error(f"Validation error for {request.url.path}")
     logger.error(f"Validation errors: {exc.errors()}")
     
+    # Create user-friendly error message
+    error_fields = [err['loc'][-1] for err in exc.errors() if 'loc' in err]
+    
     return JSONResponse(
         status_code=422,
         content={
+            "error": "INVALID_REQUEST_BODY",
+            "message": f"Required fields missing or invalid: {', '.join(error_fields)}",
             "detail": exc.errors(),
-            "message": "Request validation failed. Check the required fields and ensure timestamp is a valid format."
+            "example_simple": {
+                "message": "Hello, I have a special offer for you"
+            },
+            "example_full": {
+                "sessionId": "session-123",
+                "message": {
+                    "sender": "scammer",
+                    "text": "Hello, I have a special offer for you",
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
         }
     )
 
