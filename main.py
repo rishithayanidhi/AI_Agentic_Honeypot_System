@@ -99,38 +99,45 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     
     # Create detailed error messages
     error_details = []
+    error_summary = []
     for err in exc.errors():
+        field_path = " -> ".join(str(loc) for loc in err.get('loc', []))
+        error_msg = err.get('msg', '')
+        error_summary.append(f"{field_path}: {error_msg}")
         error_details.append({
-            "field": " -> ".join(str(loc) for loc in err.get('loc', [])),
-            "message": err.get('msg', ''),
+            "field": field_path,
+            "message": error_msg,
             "type": err.get('type', ''),
-            "input": err.get('input', 'N/A')
+            "input": str(err.get('input', 'N/A'))[:100]  # Truncate long inputs
         })
+    
+    # Create user-friendly message that will be displayed
+    friendly_message = (
+        "VALIDATION ERROR:\n\n" + 
+        "\n".join(f"• {err}" for err in error_summary[:5]) +  # Show first 5 errors
+        "\n\nRequired format:\n" +
+        '{"sessionId":"session-123","message":{"sender":"scammer","text":"Your message","timestamp":"2026-02-01T10:00:00Z"},"conversationHistory":[],"metadata":{"channel":"SMS","language":"English","locale":"IN"}}'
+    )
     
     return JSONResponse(
         status_code=422,
         content={
+            "status": "error",
             "error": "INVALID_REQUEST_BODY",
-            "message": "Request validation failed. See 'errors' field for details.",
+            "message": friendly_message,
             "errors": error_details,
-            "raw_errors": exc.errors(),
-            "examples": {
-                "simple_format": {
-                    "message": "Hello, I have a special offer for you"
+            "example": {
+                "sessionId": "session-123",
+                "message": {
+                    "sender": "scammer",
+                    "text": "URGENT: Your account will be blocked. Share OTP now.",
+                    "timestamp": "2026-02-01T10:00:00Z"
                 },
-                "full_format": {
-                    "sessionId": "session-123",
-                    "message": {
-                        "sender": "scammer",
-                        "text": "Hello, I have a special offer for you",
-                        "timestamp": "2026-02-01T10:00:00Z"
-                    },
-                    "conversationHistory": [],
-                    "metadata": {
-                        "channel": "SMS",
-                        "language": "English",
-                        "locale": "IN"
-                    }
+                "conversationHistory": [],
+                "metadata": {
+                    "channel": "SMS",
+                    "language": "English",
+                    "locale": "IN"
                 }
             }
         }
