@@ -6,6 +6,7 @@ from datetime import datetime
 import logging
 import asyncio
 import warnings
+import sys
 from typing import Optional, Union
 
 # Suppress Pydantic warnings from google-genai library
@@ -22,12 +23,21 @@ from src.services.ai_agent import AIAgent
 from src.utils.intelligence_extractor import IntelligenceExtractor
 from src.services.guvi_callback import guvi_callback
 
-# Configure logging
+# Configure logging for Render (explicit stdout)
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)],
+    force=True
 )
 logger = logging.getLogger(__name__)
+
+# Log startup info
+logger.info("="*60)
+logger.info("AI AGENTIC HONEYPOT SYSTEM STARTING")
+logger.info(f"LLM Provider: {settings.LLM_PROVIDER}")
+logger.info("="*60)
+sys.stdout.flush()  # Force flush to Render
 
 # Initialize FastAPI app with performance optimizations
 app = FastAPI(
@@ -80,8 +90,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         content={
             "detail": exc.errors(),
             "message": "Request validation failed. Check the required fields and ensure timestamp is a valid format."
-        }
-    )
         }
     )
 
