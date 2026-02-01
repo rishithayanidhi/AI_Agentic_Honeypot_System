@@ -72,22 +72,16 @@ intelligence_extractor = IntelligenceExtractor()
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Log and return detailed validation errors"""
-    try:
-        body = await request.body()
-        body_str = body.decode() if body else ""
-    except Exception:
-        body_str = "Could not read request body"
-    
     logger.error(f"Validation error for {request.url.path}")
-    logger.error(f"Request body: {body_str}")
     logger.error(f"Validation errors: {exc.errors()}")
     
     return JSONResponse(
         status_code=422,
         content={
             "detail": exc.errors(),
-            "message": "Request validation failed. Check the required fields.",
-            "body": body_str[:500] if body_str else None  # Truncate for safety
+            "message": "Request validation failed. Check the required fields and ensure timestamp is a valid format."
+        }
+    )
         }
     )
 
