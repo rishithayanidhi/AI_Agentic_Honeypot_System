@@ -181,10 +181,12 @@ async def handle_message(
     """
     try:
         # Parse request body manually to avoid validation errors
+        request = None
         try:
             body = await raw_request.body()
             if body:
-                request_data = await raw_request.json()
+                import json
+                request_data = json.loads(body.decode('utf-8'))
                 request = IncomingRequest(**request_data)
             else:
                 request = IncomingRequest()
