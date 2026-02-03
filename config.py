@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from typing import Optional
+from typing import Optional, List
 
 
 class Settings(BaseSettings):
@@ -13,9 +13,21 @@ class Settings(BaseSettings):
     # LLM Configuration
     LLM_PROVIDER: str = "anthropic"  # openai, anthropic, or gemini
     
-    # Gemini Configuration
-    GOOGLE_API_KEY: Optional[str] = None
+    # Gemini Configuration - Support multiple API keys
+    GOOGLE_API_KEY: Optional[str] = None  # Primary key
+    GOOGLE_API_KEY_2: Optional[str] = None  # Additional keys for rotation
+    GOOGLE_API_KEY_3: Optional[str] = None
+    GOOGLE_API_KEY_4: Optional[str] = None
     GEMINI_MODEL: str = "gemini-pro"
+    
+    def get_gemini_api_keys(self) -> List[str]:
+        """Get all configured Gemini API keys"""
+        keys = []
+        for key in [self.GOOGLE_API_KEY, self.GOOGLE_API_KEY_2, 
+                    self.GOOGLE_API_KEY_3, self.GOOGLE_API_KEY_4]:
+            if key and key != "your-google-api-key-here":
+                keys.append(key)
+        return keys
     
     # OpenAI Configuration
     OPENAI_API_KEY: Optional[str] = None

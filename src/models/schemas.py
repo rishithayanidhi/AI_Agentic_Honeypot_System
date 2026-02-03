@@ -5,14 +5,16 @@ from datetime import datetime
 
 class Message(BaseModel):
     """Represents a single message in the conversation"""
-    sender: str  # "scammer" or "user"
-    text: str
-    timestamp: Union[str, int]  # Accept both string and integer timestamps
+    sender: Optional[str] = "scammer"  # "scammer" or "user"
+    text: Optional[str] = ""  # Make optional for flexible parsing
+    timestamp: Optional[Union[str, int]] = None  # Accept both string and integer timestamps
     
     @field_validator('timestamp', mode='before')
     @classmethod
     def convert_timestamp(cls, v):
         """Convert integer timestamp to ISO string format"""
+        if v is None:
+            return datetime.now().isoformat()
         if isinstance(v, int):
             # Convert milliseconds timestamp to ISO format
             return datetime.fromtimestamp(v / 1000).isoformat()
@@ -33,8 +35,10 @@ class EmptyRequest(BaseModel):
 
 class SimpleIncomingRequest(BaseModel):
     """Simplified incoming API request structure (for testing)"""
-    session_id: Optional[str] = Field(default="test-session", alias="sessionId")
-    message: Optional[str] = Field(default="Hello, this is a test message")
+    session_id: Optional[str] = Field(default=None, alias="sessionId")
+    message: Optional[Union[str, Dict[str, Any]]] = Field(default=None)  # Accept both string and dict
+    conversationHistory: Optional[List[Any]] = Field(default_factory=list)
+    metadata: Optional[Dict[str, Any]] = None
     
     class Config:
         populate_by_name = True  # Allow both session_id and sessionId
@@ -42,10 +46,13 @@ class SimpleIncomingRequest(BaseModel):
 
 class IncomingRequest(BaseModel):
     """Full incoming API request structure"""
-    sessionId: str
-    message: Message
-    conversationHistory: List[Message] = Field(default_factory=list)
-    metadata: Optional[Metadata] = None
+    sessionId: Optional[str] = None
+    message: Optional[Union[Message, str, Dict[str, Any]]] = None  # Accept Message object, string, or dict
+    conversationHistory: Optional[List[Any]] = Field(default_factory=list)  # Accept any format
+    metadata: Optional[Union[Metadata, Dict[str, Any]]] = None  # Accept Metadata or dict
+    
+    class Config:
+        populate_by_name = True
 
 
 class ExtractedIntelligence(BaseModel):

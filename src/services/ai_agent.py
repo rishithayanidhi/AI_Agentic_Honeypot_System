@@ -55,12 +55,14 @@ class AIAgent:
         self.available_providers = []
         self.clients = {}
         self.models = {}
+        self.gemini_key_index = 0  # Track current Gemini key
+        self.gemini_clients = []  # Multiple Gemini clients
         
         # Initialize all available providers dynamically
         self._initialize_providers()
     
     def _initialize_providers(self):
-        """Initialize LLM providers (Claude Haiku 4.5, Gemini)"""
+        """Initialize LLM providers (Claude Haiku 4.5, Gemini with multi-key support)"""
         # Try Anthropic (Claude Haiku 4.5) - Primary
         try:
             if settings.ANTHROPIC_API_KEY and settings.ANTHROPIC_API_KEY != "your-anthropic-api-key-here":
@@ -71,13 +73,24 @@ class AIAgent:
         except Exception as e:
             logger.warning(f"AI Agent: Failed to initialize Claude: {e}")
         
-        # Try Gemini - Fallback
+        # Initialize multiple Gemini clients with different API keys
         try:
-            if settings.GOOGLE_API_KEY and settings.GOOGLE_API_KEY != "your-google-api-key-here":
-                self.clients['gemini'] = genai.Client(api_key=settings.GOOGLE_API_KEY)
-                self.models['gemini'] = settings.GEMINI_MODEL
-                self.available_providers.append('gemini')
-                logger.info(f"AI Agent: Gemini initialized with model: {settings.GEMINI_MODEL}")
+            gemini_keys = settings.get_gemini_api_keys()
+            if gemini_keys:
+                for idx, api_key in enumerate(gemini_keys):
+                    try:
+                        client = genai.Client(api_key=api_key)
+                        self.gemini_clients.append(client)
+                        logger.info(f"AI Agent: Gemini client {idx + 1} initialized (key: ...{api_key[-4:]})")
+                    except Exception as e:
+                        logger.warning(f"AI Agent: Failed to initialize Gemini client {idx + 1}: {e}")
+                
+                if self.gemini_clients:
+                    # Set first client as default
+                    self.clients['gemini'] = self.gemini_clients[0]
+                    self.models['gemini'] = settings.GEMINI_MODEL
+                    self.available_providers.append('gemini')
+                    logger.info(f"✅ AI Agent: {len(self.gemini_clients)} Gemini API key(s) initialized")
         except Exception as e:
             logger.warning(f"AI Agent: Failed to initialize Gemini: {e}")
         
@@ -106,6 +119,9 @@ class AIAgent:
                 return result_text
             
             elif provider == "gemini":
+                # Try all Gemini clients with rotation on quota errors
+                last_error = None
+                
                 # Prioritize Flash models for speed
                 gemini_models = [
                     'models/gemini-2.5-flash',      # Fastest
@@ -116,57 +132,80 @@ class AIAgent:
                     'models/gemini-pro-latest'       # Last resort
                 ]
                 
-                last_error = None
-                for model_name in gemini_models:
-                    try:
-                        # Use proper generation configuration
-                        response = self.clients['gemini'].models.generate_content(
-                            model=model_name,
-                            contents=prompt,
-                            config={
-                                'temperature': temperature,
-                                'maxOutputTokens': settings.LLM_MAX_TOKENS_RESPONSE,
-                                'topP': 0.95,
-                                'topK': 40
-                            }
-                        )
-                        
-                        # Check if response was blocked or incomplete
-                        if hasattr(response, 'candidates') and response.candidates:
-                            candidate = response.candidates[0]
-                            if hasattr(candidate, 'finish_reason'):
-                                logger.info(f"AI Agent: Finish reason: {candidate.finish_reason}")
-                        
-                        logger.info(f"AI Agent: Successfully used Gemini model: {model_name}")
-                        
-                        # Extract text from response - try different methods
-                        result_text = ""
+                # Try each Gemini client (rotating through API keys)
+                for client_attempt in range(len(self.gemini_clients)):
+                    current_client = self.gemini_clients[self.gemini_key_index]
+                    client_num = self.gemini_key_index + 1
+                    
+                    for model_name in gemini_models:
                         try:
-                            # Primary method: use .text property
-                            result_text = response.text
-                        except Exception as e:
-                            logger.debug(f"AI Agent: Could not get .text property: {e}")
-                            # Fallback: extract from candidates
+                            # Use proper generation configuration
+                            response = current_client.models.generate_content(
+                                model=model_name,
+                                contents=prompt,
+                                config={
+                                    'temperature': temperature,
+                                    'maxOutputTokens': settings.LLM_MAX_TOKENS_RESPONSE,
+                                    'topP': 0.95,
+                                    'topK': 40
+                                }
+                            )
+                            
+                            # Check if response was blocked or incomplete
                             if hasattr(response, 'candidates') and response.candidates:
                                 candidate = response.candidates[0]
-                                if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
-                                    parts_text = []
-                                    for part in candidate.content.parts:
-                                        if hasattr(part, 'text'):
-                                            parts_text.append(part.text)
-                                    result_text = ''.join(parts_text)
-                        
-                        if not result_text:
-                            raise ValueError("Could not extract text from response")
-                        
-                        logger.debug(f"AI Agent: Raw response from {model_name}: {result_text[:200]}...")
-                        return result_text
-                    except Exception as model_error:
-                        last_error = model_error
-                        logger.warning(f"AI Agent: Gemini model {model_name} failed: {model_error}")
-                        continue
+                                if hasattr(candidate, 'finish_reason'):
+                                    logger.info(f"AI Agent: Finish reason: {candidate.finish_reason}")
+                            
+                            logger.info(f"AI Agent: Successfully used Gemini model: {model_name}")
+                            logger.info(f"AI Agent: Received response length: {len(response.text) if hasattr(response, 'text') else 0} characters")
+                            
+                            # Extract text from response - try different methods
+                            result_text = ""
+                            try:
+                                # Primary method: use .text property
+                                result_text = response.text
+                            except Exception as e:
+                                logger.debug(f"AI Agent: Could not get .text property: {e}")
+                                # Fallback: extract from candidates
+                                if hasattr(response, 'candidates') and response.candidates:
+                                    candidate = response.candidates[0]
+                                    if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
+                                        parts_text = []
+                                        for part in candidate.content.parts:
+                                            if hasattr(part, 'text'):
+                                                parts_text.append(part.text)
+                                        result_text = ''.join(parts_text)
+                            
+                            if not result_text:
+                                raise ValueError("Could not extract text from response")
+                            
+                            logger.debug(f"AI Agent: Raw response from {model_name}: {result_text[:200]}...")
+                            return result_text
+                            
+                        except Exception as model_error:
+                            error_msg = str(model_error)
+                            last_error = model_error
+                            
+                            # Check if it's a quota error (429 or RESOURCE_EXHAUSTED)
+                            if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg or "quota" in error_msg.lower():
+                                logger.warning(f"AI Agent: Gemini model {model_name} failed: {model_error}")
+                                # Try next model with current key
+                                continue
+                            else:
+                                # Non-quota error, try next model
+                                logger.warning(f"AI Agent: Gemini model {model_name} failed: {model_error}")
+                                continue
+                    
+                    # All models failed with current key, rotate to next key
+                    if len(self.gemini_clients) > 1:
+                        self.gemini_key_index = (self.gemini_key_index + 1) % len(self.gemini_clients)
+                        logger.warning(f"AI Agent: Rotating to Gemini API key {self.gemini_key_index + 1}")
+                    else:
+                        # Only one key, can't rotate
+                        break
                 
-                # If all models failed, raise the last error
+                # If all models and all keys failed, raise the last error
                 if last_error:
                     raise last_error
             

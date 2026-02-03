@@ -14,7 +14,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module="pydantic._intern
 
 from config import settings
 from src.models.schemas import (
-    IncomingRequest, SimpleIncomingRequest, EmptyRequest, APIResponse, EngagementMetrics, 
+    IncomingRequest, APIResponse, EngagementMetrics, 
     ExtractedIntelligence, Message
 )
 from src.services.session_manager import session_manager
@@ -171,45 +171,58 @@ async def health_check():
 
 @app.post("/api/message")
 async def handle_message(
-    request: Union[IncomingRequest, SimpleIncomingRequest, EmptyRequest],
+    request: IncomingRequest,
     api_key: str = Depends(verify_api_key)
 ):
     """
     Main endpoint to handle incoming messages
-    Accepts both full format (with Message object) and simple format (with string)
-    Also accepts empty body for GUVI endpoint tester validation
+    Accepts flexible formats - handles empty body, simple format, and full format
     """
     try:
         logger.info(f"Received request type: {type(request).__name__}")
         logger.info(f"Request data: {request.model_dump()}")
         
-        # Handle empty request (GUVI tester)
-        if isinstance(request, EmptyRequest):
-            session_id = f"test-{datetime.now().timestamp()}"
+        # Extract session_id with fallback
+        session_id = request.sessionId or f"auto-{datetime.now().timestamp()}"
+        
+        # Handle message in various formats
+        if request.message is None or request.message == "":
+            # Empty request (GUVI tester)
             message_text = "Hello, this is a test message"
             message_obj = Message(
                 sender="scammer",
                 text=message_text,
                 timestamp=datetime.now().isoformat()
             )
-            conversation_history = []
-        # Handle both request formats
-        elif isinstance(request, SimpleIncomingRequest):
-            # Convert simple format to full format
-            session_id = request.session_id or f"auto-{datetime.now().timestamp()}"
-            message_text = request.message
+        elif isinstance(request.message, str):
+            # Simple string message
+            message_text = request.message if request.message else "Hello"
             message_obj = Message(
                 sender="scammer",
                 text=message_text,
                 timestamp=datetime.now().isoformat()
             )
-            conversation_history = []
+        elif isinstance(request.message, dict):
+            # Dictionary format - convert to Message
+            message_text = request.message.get("text", request.message.get("message", "Hello"))
+            if not message_text:  # Ensure we have text
+                message_text = "Hello"
+            message_obj = Message(
+                sender=request.message.get("sender", "scammer"),
+                text=message_text,
+                timestamp=request.message.get("timestamp") or datetime.now().isoformat()
+            )
         else:
-            # Full format
-            session_id = request.sessionId
+            # Message object
             message_obj = request.message
-            message_text = request.message.text
-            conversation_history = request.conversationHistory
+            message_text = request.message.text if request.message.text else "Hello"
+        
+        # Ensure message_text is never empty
+        if not message_text or message_text.strip() == "":
+            message_text = "Hello"
+        
+        # Handle conversation history
+        conversation_history = request.conversationHistory or []
         
         logger.info(f"Received message for session: {session_id}")
         
@@ -387,11 +400,11 @@ async def handle_message(
                 session_complete = True
                 session.engagement_active = False
                 session.agent_notes += f" | Conversation ended: {end_reason}"
-                logger.info(f"Session {request.sessionId} complete: {end_reason}")
+                logger.info(f"Session {session_id} complete: {end_reason}")
                 
                 # Send final results to GUVI
                 success = guvi_callback.send_final_result(
-                    session_id=request.sessionId,
+                    session_id=session_id,
                     scam_detected=session.scam_detected,
                     total_messages=session.message_count,
                     extracted_intelligence=session.intelligence.model_dump(),
@@ -399,9 +412,9 @@ async def handle_message(
                 )
                 
                 if success:
-                    logger.info(f"Successfully sent final results to GUVI for session {request.sessionId}")
+                    logger.info(f"Successfully sent final results to GUVI for session {session_id}")
                 else:
-                    logger.warning(f"Failed to send results to GUVI for session {request.sessionId}")
+                    logger.warning(f"Failed to send results to GUVI for session {session_id}")
         
         # Fast response preparation with minimal overhead
         engagement_duration = int((datetime.now() - session.created_at).total_seconds())

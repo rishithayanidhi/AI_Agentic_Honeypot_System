@@ -35,6 +35,8 @@ class ScamDetector:
         self.available_providers = []
         self.clients = {}
         self.models = {}
+        self.gemini_key_index = 0  # Track current Gemini key for rotation
+        self.gemini_clients = []  # Multiple Gemini clients for key rotation
         self.detection_cache = {}  # In-memory cache for faster repeated detections
         self.cache_max_size = settings.CACHE_MAX_SIZE  # Dynamic cache size
         
@@ -67,15 +69,25 @@ class ScamDetector:
         except Exception as e:
             logger.warning(f"Scam Detector: Failed to initialize Claude: {e}")
         
-        # Try Gemini - Fallback
+        # Try Gemini with multiple API keys - Fallback
         try:
-            if settings.GOOGLE_API_KEY and settings.GOOGLE_API_KEY != "your-google-api-key-here":
-                self.clients['gemini'] = genai.Client(api_key=settings.GOOGLE_API_KEY)
-                self.models['gemini'] = settings.GEMINI_MODEL
-                self.available_providers.append('gemini')
-                logger.info(f"Gemini initialized with model: {settings.GEMINI_MODEL}")
+            gemini_keys = settings.get_gemini_api_keys()
+            if gemini_keys:
+                for idx, api_key in enumerate(gemini_keys):
+                    try:
+                        client = genai.Client(api_key=api_key)
+                        self.gemini_clients.append(client)
+                        logger.info(f"Scam Detector: Gemini client {idx + 1} initialized (key: ...{api_key[-4:]})")
+                    except Exception as key_error:
+                        logger.warning(f"Scam Detector: Failed to initialize Gemini key {idx + 1}: {key_error}")
+                
+                if self.gemini_clients:
+                    self.clients['gemini'] = self.gemini_clients[0]  # For compatibility
+                    self.models['gemini'] = settings.GEMINI_MODEL
+                    self.available_providers.append('gemini')
+                    logger.info(f"✅ Scam Detector: {len(self.gemini_clients)} Gemini API key(s) initialized")
         except Exception as e:
-            logger.warning(f"Failed to initialize Gemini: {e}")
+            logger.warning(f"Scam Detector: Failed to initialize Gemini: {e}")
         
         if not self.available_providers:
             logger.warning("No LLM providers available - will use keyword-based detection only")
@@ -112,59 +124,76 @@ class ScamDetector:
                     'models/gemini-pro-latest'       # Last resort
                 ]
                 
-                last_error = None
-                for model_name in gemini_models:
-                    try:
-                        # Use proper generation configuration
-                        response = self.clients['gemini'].models.generate_content(
-                            model=model_name,
-                            contents=prompt,
-                            config={
-                                'temperature': settings.LLM_TEMPERATURE_DETECTION,
-                                'maxOutputTokens': settings.LLM_MAX_TOKENS_DETECTION,
-                                'topP': 0.95,
-                                'topK': 40
-                            }
-                        )
-                        
-                        # Check if response was blocked or incomplete
-                        if hasattr(response, 'candidates') and response.candidates:
-                            candidate = response.candidates[0]
-                            if hasattr(candidate, 'finish_reason'):
-                                logger.info(f"Finish reason: {candidate.finish_reason}")
-                        
-                        logger.info(f"Successfully used Gemini model: {model_name}")
-                        
-                        # Extract text from response - try different methods
-                        result_text = ""
+                # Try each Gemini client (rotating through API keys on quota errors)
+                for client_attempt in range(len(self.gemini_clients)):
+                    current_client = self.gemini_clients[self.gemini_key_index]
+                    
+                    last_error = None
+                    for model_name in gemini_models:
                         try:
-                            # Primary method: use .text property
-                            result_text = response.text
-                        except Exception as e:
-                            logger.debug(f"Could not get .text property: {e}")
-                            # Fallback: extract from candidates
+                            # Use proper generation configuration
+                            response = current_client.models.generate_content(
+                                model=model_name,
+                                contents=prompt,
+                                config={
+                                    'temperature': settings.LLM_TEMPERATURE_DETECTION,
+                                    'maxOutputTokens': settings.LLM_MAX_TOKENS_DETECTION,
+                                    'topP': 0.95,
+                                    'topK': 40
+                                }
+                            )
+                            
+                            # Check if response was blocked or incomplete
                             if hasattr(response, 'candidates') and response.candidates:
                                 candidate = response.candidates[0]
-                                if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
-                                    parts_text = []
-                                    for part in candidate.content.parts:
-                                        if hasattr(part, 'text'):
-                                            parts_text.append(part.text)
-                                    result_text = ''.join(parts_text)
-                        
-                        if not result_text:
-                            raise ValueError("Could not extract text from response")
-                        
-                        logger.debug(f"Raw response from {model_name}: {result_text[:200]}...")
-                        return result_text
-                    except Exception as model_error:
-                        last_error = model_error
-                        logger.warning(f"Gemini model {model_name} failed: {model_error}")
+                                if hasattr(candidate, 'finish_reason'):
+                                    logger.info(f"Finish reason: {candidate.finish_reason}")
+                            
+                            logger.info(f"Scam Detector: Successfully used Gemini model: {model_name} (key {self.gemini_key_index + 1})")
+                            
+                            # Extract text from response - try different methods
+                            result_text = ""
+                            try:
+                                # Primary method: use .text property
+                                result_text = response.text
+                            except Exception as e:
+                                logger.debug(f"Could not get .text property: {e}")
+                                # Fallback: extract from candidates
+                                if hasattr(response, 'candidates') and response.candidates:
+                                    candidate = response.candidates[0]
+                                    if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
+                                        parts_text = []
+                                        for part in candidate.content.parts:
+                                            if hasattr(part, 'text'):
+                                                parts_text.append(part.text)
+                                        result_text = ''.join(parts_text)
+                            
+                            if not result_text:
+                                raise ValueError("Could not extract text from response")
+                            
+                            logger.debug(f"Raw response from {model_name}: {result_text[:200]}...")
+                            return result_text
+                        except Exception as model_error:
+                            last_error = model_error
+                            error_msg = str(model_error).lower()
+                            
+                            # Check if it's a quota error - if so, try next model with current key
+                            if "429" in error_msg or "resource_exhausted" in error_msg or "quota" in error_msg:
+                                logger.warning(f"Scam Detector: Gemini model {model_name} quota exceeded (key {self.gemini_key_index + 1})")
+                                continue
+                            else:
+                                logger.warning(f"Scam Detector: Gemini model {model_name} failed: {model_error}")
+                                continue
+                    
+                    # All models failed with current key, try rotating to next key
+                    if len(self.gemini_clients) > 1 and client_attempt < len(self.gemini_clients) - 1:
+                        self.gemini_key_index = (self.gemini_key_index + 1) % len(self.gemini_clients)
+                        logger.warning(f"Scam Detector: Rotating to Gemini API key {self.gemini_key_index + 1}")
                         continue
-                
-                # If all models failed, raise the last error
-                if last_error:
-                    raise last_error
+                    else:
+                        # All keys exhausted, raise the last error
+                        if last_error:
+                            raise last_error
             
             raise ValueError(f"Unknown provider: {provider}")
             
