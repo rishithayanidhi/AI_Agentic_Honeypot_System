@@ -177,19 +177,33 @@ async def handle_message(
     """
     Main endpoint to handle incoming messages
     Accepts flexible formats - handles empty body, simple format, and full format
-    Uses raw Request to bypass FastAPI validation
+    GUVI Format: Returns {"status": "success", "reply": "agent response"}
     """
     try:
         # Parse request body manually to avoid validation errors
         request = None
+        body_str = ""
         try:
             body = await raw_request.body()
-            if body:
+            body_str = body.decode('utf-8') if body else ""
+            
+            if body_str and body_str.strip():
                 import json
-                request_data = json.loads(body.decode('utf-8'))
+                request_data = json.loads(body_str)
                 request = IncomingRequest(**request_data)
             else:
-                request = IncomingRequest()
+                # Empty body - return test response
+                logger.info("Empty request body received - returning test response")
+                return {
+                    "status": "success",
+                    "reply": "Hello! I'm the AI honeypot agent. Send me a message to test."
+                }
+        except json.JSONDecodeError as je:
+            logger.warning(f"Invalid JSON in request body: {je}, using default")
+            return {
+                "status": "success",
+                "reply": "Invalid request format. Please send valid JSON."
+            }
         except Exception as parse_error:
             logger.warning(f"Could not parse request body: {parse_error}, using default")
             request = IncomingRequest()
