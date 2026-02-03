@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Security, Depends, Request
+from fastapi import FastAPI, HTTPException, Security, Depends, Request, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -171,14 +171,18 @@ async def health_check():
 
 @app.post("/api/message")
 async def handle_message(
-    request: IncomingRequest,
-    api_key: str = Depends(verify_api_key)
+    api_key: str = Depends(verify_api_key),
+    request: IncomingRequest = Body(default=None)
 ):
     """
     Main endpoint to handle incoming messages
     Accepts flexible formats - handles empty body, simple format, and full format
     """
     try:
+        # Handle completely missing request body
+        if request is None:
+            request = IncomingRequest()
+        
         logger.info(f"Received request type: {type(request).__name__}")
         logger.info(f"Request data: {request.model_dump()}")
         
