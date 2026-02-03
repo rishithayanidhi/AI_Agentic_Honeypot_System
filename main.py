@@ -171,16 +171,25 @@ async def health_check():
 
 @app.post("/api/message")
 async def handle_message(
-    api_key: str = Depends(verify_api_key),
-    request: IncomingRequest = Body(default=None)
+    raw_request: Request,
+    api_key: str = Depends(verify_api_key)
 ):
     """
     Main endpoint to handle incoming messages
     Accepts flexible formats - handles empty body, simple format, and full format
+    Uses raw Request to bypass FastAPI validation
     """
     try:
-        # Handle completely missing request body
-        if request is None:
+        # Parse request body manually to avoid validation errors
+        try:
+            body = await raw_request.body()
+            if body:
+                request_data = await raw_request.json()
+                request = IncomingRequest(**request_data)
+            else:
+                request = IncomingRequest()
+        except Exception as parse_error:
+            logger.warning(f"Could not parse request body: {parse_error}, using default")
             request = IncomingRequest()
         
         logger.info(f"Received request type: {type(request).__name__}")
