@@ -33,6 +33,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Log startup info
+# Clean deployment - no database dependencies (v2.0)
 logger.info("="*60)
 logger.info("AI AGENTIC HONEYPOT SYSTEM STARTING")
 logger.info(f"LLM Provider: {settings.LLM_PROVIDER}")
