@@ -388,14 +388,26 @@ async def handle_message(
                         message_count=session.message_count
                     )
                 
-                # Generate response with error handling
-                agent_decision = ai_agent.generate_response(
-                    scammer_message=message_text,
-                    conversation_history=session.messages,
-                    persona=session.persona,
-                    scam_type=scam_type,
-                    extracted_intel=session.intelligence.model_dump()
-                )
+                # Generate response with 20s timeout to avoid GUVI 30s timeout
+                try:
+                    agent_decision = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            ai_agent.generate_response,
+                            scammer_message=message_text,
+                            conversation_history=session.messages,
+                            persona=session.persona,
+                            scam_type=scam_type,
+                            extracted_intel=session.intelligence.model_dump()
+                        ),
+                        timeout=20.0
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning("AI generation timed out after 20s - using fast fallback")
+                    agent_decision = {
+                        'response': "I see. Could you provide more details about this?",
+                        'should_continue': True,
+                        'notes': 'Timeout - fast fallback'
+                    }
                 
                 # Safely extract response fields with validation
                 if agent_decision and isinstance(agent_decision, dict):
