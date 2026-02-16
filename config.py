@@ -1,9 +1,12 @@
 from pydantic_settings import BaseSettings
 from typing import Optional, List
+from pydantic import ConfigDict
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
+    
+    model_config = ConfigDict(extra='allow')  # Allow unlimited API keys
     
     # API Configuration
     API_KEY: str
@@ -13,20 +16,23 @@ class Settings(BaseSettings):
     # LLM Configuration
     LLM_PROVIDER: str = "anthropic"  # openai, anthropic, or gemini
     
-    # Gemini Configuration - Support multiple API keys
+    # Gemini Configuration - Support UNLIMITED API keys
     GOOGLE_API_KEY: Optional[str] = None  # Primary key
     GOOGLE_API_KEY_2: Optional[str] = None  # Additional keys for rotation
     GOOGLE_API_KEY_3: Optional[str] = None
     GOOGLE_API_KEY_4: Optional[str] = None
+    # You can add GOOGLE_API_KEY_5, GOOGLE_API_KEY_6, etc. in .env - no code changes needed!
     GEMINI_MODEL: str = "gemini-pro"
     
     def get_gemini_api_keys(self) -> List[str]:
-        """Get all configured Gemini API keys"""
+        """Get all configured Gemini API keys - automatically detects unlimited keys"""
         keys = []
-        for key in [self.GOOGLE_API_KEY, self.GOOGLE_API_KEY_2, 
-                    self.GOOGLE_API_KEY_3, self.GOOGLE_API_KEY_4]:
-            if key and key != "your-google-api-key-here":
-                keys.append(key)
+        # Dynamically find all GOOGLE_API_KEY* attributes
+        for attr_name in dir(self):
+            if attr_name.startswith('GOOGLE_API_KEY'):
+                key_value = getattr(self, attr_name, None)
+                if key_value and isinstance(key_value, str) and key_value != "your-google-api-key-here":
+                    keys.append(key_value)
         return keys
     
     # OpenAI Configuration
@@ -76,9 +82,12 @@ class Settings(BaseSettings):
     PERSONA_CHANGE_INTERVAL: int = 5  # Change persona every N messages
     EARLY_STAGE_THRESHOLD: int = 3  # Messages before mid-conversation
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    # Pydantic v2 configuration
+    model_config = ConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra='allow'  # Allow unlimited API key variables
+    )
 
 
 settings = Settings()

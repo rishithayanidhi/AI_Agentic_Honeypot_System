@@ -5,25 +5,70 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
+      # Python Configuration
       - key: PYTHON_VERSION
         value: 3.13.1
+      
+      # Required: API Key for authentication
+      - key: API_KEY
+        sync: false  # Set in Render Dashboard (e.g., honeypot-secret-2026)
+      
+      # LLM Provider Configuration
       - key: LLM_PROVIDER
-        value: anthropic
+        value: anthropic  # Options: anthropic, gemini, or openai
+      
+      # Anthropic (Claude) Configuration - Primary Provider
+      - key: ANTHROPIC_API_KEY
+        sync: false  # Set in Render Dashboard
       - key: ANTHROPIC_MODEL
         value: claude-haiku-4.5-20250110
-      - key: LLM_MAX_TOKENS_DETECTION
-        value: 500
-      - key: LLM_MAX_TOKENS_RESPONSE
-        value: 300
+      
+      # Gemini Configuration - UNLIMITED API Keys Support
+      # Add as many keys as needed: GOOGLE_API_KEY, GOOGLE_API_KEY_2, GOOGLE_API_KEY_3, etc.
+      - key: GOOGLE_API_KEY
+        sync: false  # Set in Render Dashboard (Primary key)
+      - key: GOOGLE_API_KEY_2
+        sync: false  # Optional: Add in Render Dashboard for key rotation
+      - key: GOOGLE_API_KEY_3
+        sync: false  # Optional: Add in Render Dashboard
+      - key: GOOGLE_API_KEY_4
+        sync: false  # Optional: Add in Render Dashboard
+      # To add more keys: Go to Render Dashboard → Environment → Add GOOGLE_API_KEY_5, GOOGLE_API_KEY_6, etc.
       - key: GEMINI_MODEL
-        value: models/gemini-2.5-flash
+        value: gemini-2.0-flash-exp
+      
+      # OpenAI Configuration (Optional)
+      - key: OPENAI_API_KEY
+        sync: false  # Optional: Set in Render Dashboard
+      - key: OPENAI_MODEL
+        value: gpt-4-turbo-preview
+      
+      # GUVI Callback Configuration
+      - key: GUVI_CALLBACK_URL
+        value: https://hackathon.guvi.in/api/updateHoneyPotFinalResult
+      
+      # Performance Configuration
+      - key: LLM_MAX_TOKENS_DETECTION
+        value: 1500
+      - key: LLM_MAX_TOKENS_RESPONSE
+        value: 2000
       - key: CACHE_MAX_SIZE
         value: 500
       - key: LLM_REQUEST_TIMEOUT
         value: 5
+      
+      # Session Configuration
       - key: SESSION_TIMEOUT_MINUTES
         value: 30
       - key: MAX_MESSAGES_PER_SESSION
         value: 50
+      
+      # Detection Configuration
       - key: SCAM_SCORE_THRESHOLD
         value: 2
+      - key: SCAM_DETECTION_THRESHOLD
+        value: 0.5
+      
+      # Debug Mode (set to true for development)
+      - key: INCLUDE_DEBUG_INFO
+        value: false

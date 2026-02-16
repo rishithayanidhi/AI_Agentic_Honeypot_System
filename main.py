@@ -159,14 +159,16 @@ async def root():
 @app.get("/health")
 @app.head("/health")
 async def health_check():
-    """Detailed health check"""
+    """Detailed health check with Gemini key count"""
+    gemini_keys_count = len(settings.get_gemini_api_keys())
     return {
         "status": "healthy",
         "service": "AI Agentic Honeypot System",
         "version": "1.0.0",
         "timestamp": datetime.now().isoformat(),
         "active_sessions": len(session_manager.sessions),
-        "llm_provider": settings.LLM_PROVIDER
+        "llm_provider": settings.LLM_PROVIDER,
+        "gemini_keys_loaded": gemini_keys_count if gemini_keys_count > 0 else "No Gemini keys configured"
     }
 
 
