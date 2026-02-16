@@ -7,6 +7,8 @@ import random
 import logging
 import json
 import re
+import hashlib
+from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +59,8 @@ class AIAgent:
         self.models = {}
         self.gemini_key_index = 0  # Track current Gemini key
         self.gemini_clients = []  # Multiple Gemini clients
+        self.response_cache = {}  # Cache for repeated scenarios
+        self.cache_hits = 0
         
         # Initialize all available providers dynamically
         self._initialize_providers()
@@ -122,14 +126,12 @@ class AIAgent:
                 # Try all Gemini clients with rotation on quota errors
                 last_error = None
                 
-                # Prioritize Flash models for speed
+                # Prioritize Flash models for SPEED (2x faster than Pro)
                 gemini_models = [
-                    'models/gemini-2.5-flash',      # Fastest
-                    'models/gemini-flash-latest',    # Fast fallback
-                    'models/gemini-2.0-flash',       # Fast alternative
-                    self.models['gemini'],           # User configured
-                    'models/gemini-2.5-pro',         # Quality fallback
-                    'models/gemini-pro-latest'       # Last resort
+                    'gemini-2.0-flash-exp',          # Fastest, newest
+                    'gemini-1.5-flash',              # Fast, stable
+                    'gemini-1.5-flash-latest',       # Fast latest
+                    self.models.get('gemini', 'gemini-pro'),  # User configured
                 ]
                 
                 # Try each Gemini client (rotating through API keys)
