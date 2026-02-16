@@ -27,8 +27,12 @@ class Settings(BaseSettings):
     def get_anthropic_api_keys(self) -> List[str]:
         """Get all configured Anthropic API keys - automatically detects unlimited keys"""
         keys = []
-        # Dynamically find all ANTHROPIC_API_KEY* attributes
-        for attr_name in dir(self):
+        # Check both explicit attributes and dynamically loaded ones from model_extra
+        all_attrs = set(dir(self))
+        if hasattr(self, 'model_extra') and self.model_extra:
+            all_attrs.update(self.model_extra.keys())
+        
+        for attr_name in sorted(all_attrs):
             if attr_name.startswith('ANTHROPIC_API_KEY'):
                 key_value = getattr(self, attr_name, None)
                 if key_value and isinstance(key_value, str) and key_value != "your-anthropic-api-key-here":
@@ -46,8 +50,12 @@ class Settings(BaseSettings):
     def get_gemini_api_keys(self) -> List[str]:
         """Get all configured Gemini API keys - automatically detects unlimited keys"""
         keys = []
-        # Dynamically find all GOOGLE_API_KEY* attributes
-        for attr_name in dir(self):
+        # Check both explicit attributes and dynamically loaded ones from model_extra
+        all_attrs = set(dir(self))
+        if hasattr(self, 'model_extra') and self.model_extra:
+            all_attrs.update(self.model_extra.keys())
+        
+        for attr_name in sorted(all_attrs):
             if attr_name.startswith('GOOGLE_API_KEY'):
                 key_value = getattr(self, attr_name, None)
                 if key_value and isinstance(key_value, str) and key_value != "your-google-api-key-here" and key_value != "your-primary-gemini-key-here":
@@ -65,8 +73,12 @@ class Settings(BaseSettings):
     def get_openai_api_keys(self) -> List[str]:
         """Get all configured OpenAI API keys - automatically detects unlimited keys"""
         keys = []
-        # Dynamically find all OPENAI_API_KEY* attributes
-        for attr_name in dir(self):
+        # Check both explicit attributes and dynamically loaded ones from model_extra
+        all_attrs = set(dir(self))
+        if hasattr(self, 'model_extra') and self.model_extra:
+            all_attrs.update(self.model_extra.keys())
+        
+        for attr_name in sorted(all_attrs):
             if attr_name.startswith('OPENAI_API_KEY'):
                 key_value = getattr(self, attr_name, None)
                 if key_value and isinstance(key_value, str) and key_value != "your-openai-api-key-here":
