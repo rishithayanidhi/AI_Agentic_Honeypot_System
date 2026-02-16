@@ -4,15 +4,28 @@ from datetime import datetime
 
 
 class Message(BaseModel):
-    """Represents a single message in the conversation"""
-    sender: Optional[str] = "scammer"  # "scammer" or "user"
-    text: Optional[str] = ""  # Make optional for flexible parsing
-    timestamp: Optional[Union[str, int]] = None  # Accept both string and integer timestamps
+    """Represents a single message in the conversation.
+    
+    Attributes:
+        sender: Message sender ('scammer' or 'user')
+        text: Message content
+        timestamp: Message timestamp (ISO format string or Unix epoch ms)
+    """
+    sender: Optional[str] = Field(default="scammer", description="Message sender")
+    text: Optional[str] = Field(default="", description="Message content")
+    timestamp: Optional[Union[str, int]] = Field(default=None, description="Message timestamp")
     
     @field_validator('timestamp', mode='before')
     @classmethod
-    def convert_timestamp(cls, v):
-        """Convert integer timestamp to ISO string format"""
+    def convert_timestamp(cls, v: Optional[Union[str, int]]) -> str:
+        """Convert integer timestamp to ISO string format.
+        
+        Args:
+            v: Timestamp value (string, int, or None)
+            
+        Returns:
+            ISO format timestamp string
+        """
         if v is None:
             return datetime.now().isoformat()
         if isinstance(v, int):
@@ -56,13 +69,25 @@ class IncomingRequest(BaseModel):
 
 
 class ExtractedIntelligence(BaseModel):
-    """Intelligence extracted from the scammer"""
-    phoneNumbers: List[str] = Field(default_factory=list)
-    bankAccounts: List[str] = Field(default_factory=list)
-    upiIds: List[str] = Field(default_factory=list)
-    phishingLinks: List[str] = Field(default_factory=list)
-    emailAddresses: List[str] = Field(default_factory=list)
-    suspiciousKeywords: List[str] = Field(default_factory=list)
+    """Intelligence extracted from scammer conversations.
+    
+    All fields are lists to support multiple extracted values.
+    Ordered by evaluation importance (highest score first).
+    
+    Attributes:
+        phoneNumbers: Extracted phone numbers (10 points)
+        bankAccounts: Extracted bank account numbers (10 points)
+        upiIds: Extracted UPI IDs (10 points)
+        phishingLinks: Extracted suspicious URLs (10 points)
+        emailAddresses: Extracted email addresses (10 points)
+        suspiciousKeywords: Scam-related keywords (for analysis)
+    """
+    phoneNumbers: List[str] = Field(default_factory=list, description="Phone numbers")
+    bankAccounts: List[str] = Field(default_factory=list, description="Bank account numbers")
+    upiIds: List[str] = Field(default_factory=list, description="UPI IDs")
+    phishingLinks: List[str] = Field(default_factory=list, description="Phishing URLs")
+    emailAddresses: List[str] = Field(default_factory=list, description="Email addresses")
+    suspiciousKeywords: List[str] = Field(default_factory=list, description="Scam keywords")
 
 
 class EngagementMetrics(BaseModel):

@@ -7,9 +7,45 @@ import logging
 import json
 import hashlib
 import re
+import time
 from functools import lru_cache
 
 logger = logging.getLogger(__name__)
+
+# Circuit Breaker Pattern for fault tolerance
+class CircuitBreaker:
+    """Circuit breaker to prevent cascading failures"""
+    def __init__(self, failure_threshold: int = 5, timeout: int = 60):
+        self.failure_threshold = failure_threshold
+        self.timeout = timeout
+        self.failure_count = 0
+        self.last_failure_time = None
+        self.state = "closed"  # closed, open, half-open
+    
+    def call(self, func, *args, **kwargs):
+        """Execute function through circuit breaker"""
+        if self.state == "open":
+            if time.time() - self.last_failure_time > self.timeout:
+                logger.info("🔄 Circuit breaker: Transitioning to half-open")
+                self.state = "half-open"
+            else:
+                raise Exception("Circuit breaker is OPEN - too many failures")
+        
+        try:
+            result = func(*args, **kwargs)
+            if self.state == "half-open":
+                logger.info("✅ Circuit breaker: Reset to closed")
+                self.state = "closed"
+                self.failure_count = 0
+            return result
+        except Exception as e:
+            self.failure_count += 1
+            self.last_failure_time = time.time()
+            
+            if self.failure_count >= self.failure_threshold:
+                logger.error(f"⚠️ Circuit breaker: OPENED after {self.failure_count} failures")
+                self.state = "open"
+            raise e
 
 
 def extract_json_from_text(text: str) -> str:
@@ -44,8 +80,15 @@ class ScamDetector:
         self.available_providers = []
         self.clients = {}
         self.models = {}
-        self.gemini_key_index = 0  # Track current Gemini key for rotation
-        self.gemini_clients = []  # Multiple Gemini clients for key rotation
+        
+        # Multiple clients for key rotation (all providers)
+        self.anthropic_clients = []  # Multiple Anthropic clients
+        self.anthropic_key_index = 0
+        self.gemini_clients = []  # Multiple Gemini clients
+        self.gemini_key_index = 0
+        self.openai_clients = []  # Multiple OpenAI clients
+        self.openai_key_index = 0
+        
         self.detection_cache = {}  # In-memory cache for faster repeated detections
         self.cache_max_size = settings.CACHE_MAX_SIZE  # Dynamic cache size
         
@@ -53,8 +96,17 @@ class ScamDetector:
         self.fast_path_hits = 0
         self.cache_hits = 0
         
+        # Stability features
+        self.circuit_breakers = {}  # One circuit breaker per provider
+        self.retry_count = {}
+        
         # Initialize all available providers dynamically
         self._initialize_providers()
+        
+        # Initialize circuit breakers for each provider
+        for provider in self.available_providers:
+            self.circuit_breakers[provider] = CircuitBreaker(failure_threshold=5, timeout=60)
+            self.retry_count[provider] = 0
     
     def _get_cache_key(self, message: str) -> str:
         """Generate cache key for message"""
@@ -71,18 +123,28 @@ class ScamDetector:
         logger.debug(f"Cached detection result for message: {message[:50]}...")
     
     def _initialize_providers(self):
-        """Initialize LLM providers (Claude Haiku 4.5, Gemini)"""
-        # Try Anthropic (Claude Haiku 4.5) - Primary
+        """Initialize LLM providers with UNLIMITED API key support (Anthropic, Gemini, OpenAI)"""
+        # Try Anthropic (Claude Haiku 4.5) with UNLIMITED keys - Primary
         try:
-            if settings.ANTHROPIC_API_KEY and settings.ANTHROPIC_API_KEY != "your-anthropic-api-key-here":
-                self.clients['anthropic'] = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-                self.models['anthropic'] = settings.ANTHROPIC_MODEL
-                self.available_providers.append('anthropic')
-                logger.info(f"🚀 Scam Detector: Claude Haiku 4.5 initialized with model: {settings.ANTHROPIC_MODEL}")
+            anthropic_keys = settings.get_anthropic_api_keys()
+            if anthropic_keys:
+                for idx, api_key in enumerate(anthropic_keys):
+                    try:
+                        client = Anthropic(api_key=api_key)
+                        self.anthropic_clients.append(client)
+                        logger.info(f"Scam Detector: Anthropic client {idx + 1} initialized (key: ...{api_key[-4:]})")  
+                    except Exception as key_error:
+                        logger.warning(f"Scam Detector: Failed to initialize Anthropic key {idx + 1}: {key_error}")
+                
+                if self.anthropic_clients:
+                    self.clients['anthropic'] = self.anthropic_clients[0]  # For compatibility
+                    self.models['anthropic'] = settings.ANTHROPIC_MODEL
+                    self.available_providers.append('anthropic')
+                    logger.info(f"✅ Scam Detector: {len(self.anthropic_clients)} Anthropic API key(s) initialized")
         except Exception as e:
-            logger.warning(f"Scam Detector: Failed to initialize Claude: {e}")
+            logger.warning(f"Scam Detector: Failed to initialize Anthropic: {e}")
         
-        # Try Gemini with multiple API keys - Fallback
+        # Try Gemini with UNLIMITED keys - Fallback
         try:
             gemini_keys = settings.get_gemini_api_keys()
             if gemini_keys:
@@ -90,7 +152,7 @@ class ScamDetector:
                     try:
                         client = genai.Client(api_key=api_key)
                         self.gemini_clients.append(client)
-                        logger.info(f"Scam Detector: Gemini client {idx + 1} initialized (key: ...{api_key[-4:]})")
+                        logger.info(f"Scam Detector: Gemini client {idx + 1} initialized (key: ...{api_key[-4:]})")  
                     except Exception as key_error:
                         logger.warning(f"Scam Detector: Failed to initialize Gemini key {idx + 1}: {key_error}")
                 
@@ -102,29 +164,88 @@ class ScamDetector:
         except Exception as e:
             logger.warning(f"Scam Detector: Failed to initialize Gemini: {e}")
         
+        # Try OpenAI with UNLIMITED keys - Alternative
+        try:
+            openai_keys = settings.get_openai_api_keys()
+            if openai_keys:
+                for idx, api_key in enumerate(openai_keys):
+                    try:
+                        # Store API key for later use (OpenAI client created on-demand)
+                        self.openai_clients.append(api_key)
+                        logger.info(f"Scam Detector: OpenAI key {idx + 1} registered (key: ...{api_key[-4:]})")  
+                    except Exception as key_error:
+                        logger.warning(f"Scam Detector: Failed to register OpenAI key {idx + 1}: {key_error}")
+                
+                if self.openai_clients:
+                    self.clients['openai'] = self.openai_clients[0]  # For compatibility
+                    self.models['openai'] = settings.OPENAI_MODEL
+                    self.available_providers.append('openai')
+                    logger.info(f"✅ Scam Detector: {len(self.openai_clients)} OpenAI API key(s) registered")
+        except Exception as e:
+            logger.warning(f"Scam Detector: Failed to initialize OpenAI: {e}")
         if not self.available_providers:
             logger.warning("No LLM providers available - will use keyword-based detection only")
         else:
             logger.info(f"✅ Available providers: {', '.join(self.available_providers)}")
     
+    def _call_llm_with_retry(self, provider: str, prompt: str, max_retries: int = 2) -> str:
+        """Call LLM with retry logic and exponential backoff"""
+        for attempt in range(max_retries + 1):
+            try:
+                # Use circuit breaker pattern
+                if provider in self.circuit_breakers:
+                    return self.circuit_breakers[provider].call(self._call_llm, provider, prompt)
+                else:
+                    return self._call_llm(provider, prompt)
+            except Exception as e:
+                if attempt < max_retries:
+                    # Exponential backoff: 0.5s, 1s, 2s
+                    wait_time = 0.5 * (2 ** attempt)
+                    logger.warning(f"🔄 Retry {attempt + 1}/{max_retries} for {provider} after {wait_time}s: {e}")
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"💥 All retries exhausted for {provider}: {e}")
+                    raise
+    
     def _call_llm(self, provider: str, prompt: str) -> str:
-        """Call LLM (Claude Haiku 4.5 or Gemini) with error handling - optimized for speed"""
+        """Call LLM with key rotation support for ALL providers (Anthropic, Gemini, OpenAI)"""
         try:
             if provider == "anthropic":
-                # Claude Haiku 4.5 - Ultra fast and cost-effective
-                response = self.clients['anthropic'].messages.create(
-                    model=self.models['anthropic'],
-                    max_tokens=settings.LLM_MAX_TOKENS_DETECTION,
-                    temperature=settings.LLM_TEMPERATURE_DETECTION,
-                    messages=[
-                        {"role": "user", "content": prompt}
-                    ]
-                )
-                
-                result_text = response.content[0].text
-                logger.info(f"🚀 Scam Detector: Successfully used Claude Haiku 4.5")
-                logger.debug(f"Scam Detector: Claude response: {result_text[:200]}...")
-                return result_text
+                # Try each Anthropic client (rotating through API keys on quota/rate limit errors)
+                for client_attempt in range(len(self.anthropic_clients)):
+                    current_client = self.anthropic_clients[self.anthropic_key_index]
+                    
+                    try:
+                        response = current_client.messages.create(
+                            model=self.models['anthropic'],
+                            max_tokens=settings.LLM_MAX_TOKENS_DETECTION,
+                            temperature=settings.LLM_TEMPERATURE_DETECTION,
+                            messages=[
+                                {"role": "user", "content": prompt}
+                            ]
+                        )
+                        
+                        result_text = response.content[0].text
+                        logger.info(f"🚀 Scam Detector: Successfully used Anthropic (key {self.anthropic_key_index + 1}/{len(self.anthropic_clients)})")
+                        logger.debug(f"Scam Detector: Anthropic response: {result_text[:200]}...")
+                        return result_text
+                    
+                    except Exception as key_error:
+                        error_msg = str(key_error).lower()
+                        
+                        # Check if it's a rate limit or quota error
+                        if "429" in error_msg or "rate_limit" in error_msg or "quota" in error_msg:
+                            logger.warning(f"Scam Detector: Anthropic key {self.anthropic_key_index + 1} rate limited")
+                            
+                            # Try rotating to next key if available
+                            if len(self.anthropic_clients) > 1 and client_attempt < len(self.anthropic_clients) - 1:
+                                self.anthropic_key_index = (self.anthropic_key_index + 1) % len(self.anthropic_clients)
+                                logger.warning(f"⟳ Rotating to Anthropic key {self.anthropic_key_index + 1}/{len(self.anthropic_clients)}")
+                                continue
+                        
+                        # If it's the last attempt or a non-rate-limit error, raise it
+                        if client_attempt == len(self.anthropic_clients) - 1:
+                            raise key_error
             
             elif provider == "gemini":
                 # Prioritize Flash models for speed, then fallback to Pro for quality
@@ -342,8 +463,10 @@ Respond ONLY with a JSON object (no markdown):
         last_error = None
         for provider in providers_to_try:
             try:
-                logger.info(f"Attempting scam detection with provider: {provider}")
-                result = self._call_llm(provider, prompt)
+                logger.info(f"🔍 Attempting scam detection with provider: {provider}")
+                
+                # Use retry logic with circuit breaker
+                result = self._call_llm_with_retry(provider, prompt, max_retries=2)
                 
                 # Log raw result details
                 logger.info(f"Received response length: {len(result)} characters")

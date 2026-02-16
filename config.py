@@ -16,6 +16,25 @@ class Settings(BaseSettings):
     # LLM Configuration
     LLM_PROVIDER: str = "anthropic"  # openai, anthropic, or gemini
     
+    # Anthropic Configuration - Support UNLIMITED API keys
+    ANTHROPIC_API_KEY: Optional[str] = None  # Primary key
+    ANTHROPIC_API_KEY_2: Optional[str] = None  # Additional keys for rotation
+    ANTHROPIC_API_KEY_3: Optional[str] = None
+    ANTHROPIC_API_KEY_4: Optional[str] = None
+    # You can add ANTHROPIC_API_KEY_5, ANTHROPIC_API_KEY_6, etc. in .env - no code changes needed!
+    ANTHROPIC_MODEL: str = "claude-haiku-4.5-20250110"
+    
+    def get_anthropic_api_keys(self) -> List[str]:
+        """Get all configured Anthropic API keys - automatically detects unlimited keys"""
+        keys = []
+        # Dynamically find all ANTHROPIC_API_KEY* attributes
+        for attr_name in dir(self):
+            if attr_name.startswith('ANTHROPIC_API_KEY'):
+                key_value = getattr(self, attr_name, None)
+                if key_value and isinstance(key_value, str) and key_value != "your-anthropic-api-key-here":
+                    keys.append(key_value)
+        return keys
+    
     # Gemini Configuration - Support UNLIMITED API keys
     GOOGLE_API_KEY: Optional[str] = None  # Primary key
     GOOGLE_API_KEY_2: Optional[str] = None  # Additional keys for rotation
@@ -31,20 +50,35 @@ class Settings(BaseSettings):
         for attr_name in dir(self):
             if attr_name.startswith('GOOGLE_API_KEY'):
                 key_value = getattr(self, attr_name, None)
-                if key_value and isinstance(key_value, str) and key_value != "your-google-api-key-here":
+                if key_value and isinstance(key_value, str) and key_value != "your-google-api-key-here" and key_value != "your-primary-gemini-key-here":
                     keys.append(key_value)
         return keys
     
-    # OpenAI Configuration
-    OPENAI_API_KEY: Optional[str] = None
+    # OpenAI Configuration - Support UNLIMITED API keys
+    OPENAI_API_KEY: Optional[str] = None  # Primary key
+    OPENAI_API_KEY_2: Optional[str] = None  # Additional keys for rotation
+    OPENAI_API_KEY_3: Optional[str] = None
+    OPENAI_API_KEY_4: Optional[str] = None
+    # You can add OPENAI_API_KEY_5, OPENAI_API_KEY_6, etc. in .env - no code changes needed!
     OPENAI_MODEL: str = "gpt-4-turbo-preview"
     
-    # Anthropic Configuration (Claude Haiku 4.5)
-    ANTHROPIC_API_KEY: Optional[str] = None
-    ANTHROPIC_MODEL: str = "claude-haiku-4.5-20250110"
+    def get_openai_api_keys(self) -> List[str]:
+        """Get all configured OpenAI API keys - automatically detects unlimited keys"""
+        keys = []
+        # Dynamically find all OPENAI_API_KEY* attributes
+        for attr_name in dir(self):
+            if attr_name.startswith('OPENAI_API_KEY'):
+                key_value = getattr(self, attr_name, None)
+                if key_value and isinstance(key_value, str) and key_value != "your-openai-api-key-here":
+                    keys.append(key_value)
+        return keys
     
     # GUVI Configuration
     GUVI_CALLBACK_URL: str = "https://hackathon.guvi.in/api/updateHoneyPotFinalResult"
+    
+    # Security Configuration
+    RATE_LIMIT_PER_MINUTE: int = 60  # Requests per IP per minute
+    MAX_REQUEST_SIZE: int = 1048576  # 1MB max request body
     
     # Response Configuration
     INCLUDE_DEBUG_INFO: bool = False  # Set to True to include detailed debug fields in response

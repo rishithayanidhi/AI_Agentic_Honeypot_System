@@ -11,12 +11,14 @@ Your AI Agentic Honeypot has been **heavily optimized** for maximum speed, accur
 ### 1. **Intelligence Extraction - 10x Faster** ✅
 
 #### Before:
+
 - Regex patterns compiled on every call
 - Linear keyword searches (O(n))
 - Inefficient list operations
 - Multiple passes through data
 
 #### After:
+
 ```python
 # Pre-compiled regex patterns (10x faster)
 _PHONE_PATTERN = re.compile(r'\+?\d{10,15}')
@@ -50,6 +52,7 @@ Tier 4: Fallback Keywords → 10-20ms
 ```
 
 #### Fast-Path Logic:
+
 ```python
 # High-confidence scam patterns (bypass LLM)
 if (urgent >= 2 and sensitive >= 1) or \
@@ -61,6 +64,7 @@ if (urgent >= 2 and sensitive >= 1) or \
 ```
 
 **Examples triggering fast-path:**
+
 - ✅ "URGENT: Your account blocked. Share OTP now!"
 - ✅ "Congratulations! You won lottery! Claim prize immediately!"
 - ✅ "Bank account suspended. Verify UPI details today!"
@@ -72,11 +76,13 @@ if (urgent >= 2 and sensitive >= 1) or \
 ### 3. **Enhanced Caching with LRU** ✅
 
 #### Before:
+
 - Simple dictionary cache (unsorted, no size limit enforcement)
 - Cache key collisions possible
 - No cache statistics
 
 #### After:
+
 ```python
 @lru_cache(maxsize=1000)  # Built-in Python LRU cache
 def _fast_scam_check(self, message_normalized: str):
@@ -88,6 +94,7 @@ self.fast_path_hits = 0
 ```
 
 **Benefits:**
+
 - Instant response for repeated messages (0ms)
 - Automatic eviction of old entries
 - Thread-safe caching
@@ -100,6 +107,7 @@ self.fast_path_hits = 0
 ### 4. **Optimized Token Usage** ✅
 
 #### Configuration Changes:
+
 ```python
 # Before
 LLM_MAX_TOKENS_DETECTION = 1500  # Slower, more expensive
@@ -121,6 +129,7 @@ ENABLE_FAST_PATH = True          # Skip LLM when possible
 ### 5. **Gemini Flash Models Priority** ✅
 
 #### Before:
+
 ```python
 gemini_models = [
     'models/gemini-2.5-pro',      # Slower, expensive
@@ -130,6 +139,7 @@ gemini_models = [
 ```
 
 #### After:
+
 ```python
 gemini_models = [
     'gemini-2.0-flash-exp',       # FASTEST (2x faster than Pro)
@@ -139,6 +149,7 @@ gemini_models = [
 ```
 
 **Flash vs Pro:**
+
 - Flash: ~200-500ms response time
 - Pro: ~800-2000ms response time
 - **Speedup: 2-4x faster with Flash models**
@@ -149,22 +160,22 @@ gemini_models = [
 
 ### Response Time Comparison
 
-| Scenario | Before | After | Improvement |
-|----------|--------|-------|-------------|
-| **Obvious Scam** (fast-path) | 800-2000ms | 50-100ms | **10-20x faster** |
-| **Cached Message** | 800-2000ms | <5ms | **160-400x faster** |
-| **First Detection** (LLM) | 1500-3000ms | 500-1500ms | **2-3x faster** |
-| **Intelligence Extraction** | 50-100ms | 5-10ms | **5-10x faster** |
-| **Average Response** | 1200ms | 300ms | **4x faster** |
+| Scenario                     | Before      | After      | Improvement         |
+| ---------------------------- | ----------- | ---------- | ------------------- |
+| **Obvious Scam** (fast-path) | 800-2000ms  | 50-100ms   | **10-20x faster**   |
+| **Cached Message**           | 800-2000ms  | <5ms       | **160-400x faster** |
+| **First Detection** (LLM)    | 1500-3000ms | 500-1500ms | **2-3x faster**     |
+| **Intelligence Extraction**  | 50-100ms    | 5-10ms     | **5-10x faster**    |
+| **Average Response**         | 1200ms      | 300ms      | **4x faster**       |
 
 ### Accuracy Maintained
 
-| Metric | Before | After | Change |
-|--------|--------|-------|---------|
-| Scam Detection Accuracy | 95% | 95% | ✅ Same |
-| False Positives | <5% | <5% | ✅ Same |
-| Intelligence Extraction | 90% | 92% | ✅ Improved |
-| Evaluation Score | 85/100 | 85-90/100 | ✅ Better |
+| Metric                  | Before | After     | Change      |
+| ----------------------- | ------ | --------- | ----------- |
+| Scam Detection Accuracy | 95%    | 95%       | ✅ Same     |
+| False Positives         | <5%    | <5%       | ✅ Same     |
+| Intelligence Extraction | 90%    | 92%       | ✅ Improved |
+| Evaluation Score        | 85/100 | 85-90/100 | ✅ Better   |
 
 ---
 
@@ -173,6 +184,7 @@ gemini_models = [
 ### Code-Level Improvements
 
 #### 1. **Pre-compiled Regex Patterns**
+
 ```python
 # Before: Compiled on every call
 for msg in messages:
@@ -185,6 +197,7 @@ for msg in messages:
 ```
 
 #### 2. **Set Operations for Deduplication**
+
 ```python
 # Before: List operations O(n²)
 all_phones = []
@@ -200,6 +213,7 @@ unique_phones = list(phones)
 ```
 
 #### 3. **Frozenset for Constant Lookups**
+
 ```python
 # Before: List iteration O(n)
 upi_providers = ['paytm', 'phonepe', 'gpay', ...]
@@ -211,6 +225,7 @@ if any(p in email for p in _UPI_PROVIDERS):  # Fast!
 ```
 
 #### 4. **LRU Cache for Repeated Patterns**
+
 ```python
 from functools import lru_cache
 
@@ -226,12 +241,14 @@ def _fast_scam_check(self, message_normalized: str):
 ### Optimized Settings
 
 #### Cache Settings
+
 ```python
 CACHE_MAX_SIZE = 1000  # ⬆️ Increased from 500
 # More cache entries = higher hit rate = faster responses
 ```
 
 #### Token Limits
+
 ```python
 LLM_MAX_TOKENS_DETECTION = 500   # ⬇️ Reduced from 1500
 # Shorter responses = faster generation = lower cost
@@ -243,6 +260,7 @@ LLM_MAX_TOKENS_RESPONSE = 150    # ⬇️ Reduced from 2000
 ```
 
 #### Fast-Path Settings
+
 ```python
 ENABLE_FAST_PATH = True          # NEW!
 FAST_PATH_THRESHOLD = 6          # NEW!
@@ -256,36 +274,39 @@ FAST_PATH_THRESHOLD = 6          # NEW!
 ### Typical Evaluation Scenario
 
 **Test: Bank Fraud Detection**
+
 ```
 Message: "URGENT: Your SBI account compromised. Share OTP immediately!"
 ```
 
 #### Performance Breakdown:
 
-| Step | Time | Optimization |
-|------|------|--------------|
-| 1. Receive request | 0ms | - |
-| 2. Check cache | <1ms | ❌ Cache miss (first time) |
-| 3. Fast-path check | 5ms | ✅ **High confidence!** |
-| 4. Return result | <1ms | |
-| **Total** | **~10ms** | **10x faster than LLM** |
+| Step               | Time      | Optimization               |
+| ------------------ | --------- | -------------------------- |
+| 1. Receive request | 0ms       | -                          |
+| 2. Check cache     | <1ms      | ❌ Cache miss (first time) |
+| 3. Fast-path check | 5ms       | ✅ **High confidence!**    |
+| 4. Return result   | <1ms      |                            |
+| **Total**          | **~10ms** | **10x faster than LLM**    |
 
 **Without Fast-Path:**
+
 - Would call LLM: +800-2000ms
 - Total: 800-2000ms
 - **10-200x slower!**
 
 ### Second Message (Cached):
+
 ```
 Same message repeated
 ```
 
-| Step | Time |
-|------|------|
-| 1. Receive request | 0ms |
-| 2. Check cache | <1ms |
-| 3. ✅ **Cache hit!** | - |
-| **Total** | **<5ms** |
+| Step                 | Time     |
+| -------------------- | -------- |
+| 1. Receive request   | 0ms      |
+| 2. Check cache       | <1ms     |
+| 3. ✅ **Cache hit!** | -        |
+| **Total**            | **<5ms** |
 
 **160-400x faster than first LLM call!**
 
@@ -296,6 +317,7 @@ Same message repeated
 ### 1. Why Pre-compiled Regex?
 
 **Regex Compilation Process:**
+
 ```python
 # Each re.findall() call:
 1. Parse pattern string → AST
@@ -312,6 +334,7 @@ Same message repeated
 ### 2. Why Frozenset over List?
 
 **Lookup Complexity:**
+
 ```python
 # List: O(n) - checks every item
 if item in list_of_100:  # 100 checks worst-case
@@ -325,6 +348,7 @@ if item in frozenset_of_100:  # 1 check always
 ### 3. Why Fast-Path Detection?
 
 **LLM Call Overhead:**
+
 ```
 HTTP request → 50ms
 Model inference → 500-1500ms
@@ -333,6 +357,7 @@ Total: ~600-1600ms
 ```
 
 **Fast-Path:**
+
 ```
 Pattern matching → 5ms
 Score calculation → 2ms
@@ -346,6 +371,7 @@ Total: ~7ms
 ## 🚀 Production Performance Tips
 
 ### 1. Cache Warming
+
 ```python
 # Pre-populate cache with common scam patterns
 common_scams = [
@@ -358,6 +384,7 @@ for scam in common_scams:
 ```
 
 ### 2. Monitor Performance
+
 ```python
 # Track cache hit rates
 logger.info(f"Cache hits: {detector.cache_hits}")
@@ -369,6 +396,7 @@ hit_rate = cache_hits / total_requests * 100
 ```
 
 ### 3. Tune Fast-Path Threshold
+
 ```python
 # Lower threshold = more fast-path usage (faster but less accurate)
 FAST_PATH_THRESHOLD = 5  # Aggressive
@@ -385,18 +413,21 @@ FAST_PATH_THRESHOLD = 6  # Default
 ## 📊 Expected Evaluation Performance
 
 ### Scenario: Bank Fraud
+
 - **First Turn:** Fast-path detection (~10ms)
 - **Scam Detected:** ✅ High confidence
 - **Intelligence Extracted:** Phone, bank account
 - **Score:** 85-95/100
 
-### Scenario: UPI Fraud  
+### Scenario: UPI Fraud
+
 - **First Turn:** Fast-path detection (~10ms)
 - **Scam Detected:** ✅ High confidence
 - **Intelligence Extracted:** UPI ID, phone
 - **Score:** 85-95/100
 
 ### Scenario: Phishing
+
 - **First Turn:** Fast-path detection (~10ms)
 - **Scam Detected:** ✅ High confidence
 - **Intelligence Extracted:** Phishing link, email
@@ -437,17 +468,20 @@ FAST_PATH_THRESHOLD = 6  # Default
 ## 🎯 Summary
 
 ### Speed Improvements:
+
 - **10-20x faster** for obvious scams (fast-path)
 - **160-400x faster** for cached messages
 - **2-3x faster** for LLM-based detection
 - **4x faster** average response time
 
 ### Cost Improvements:
+
 - **60-70% reduction** in LLM token usage
 - **2x more cache hits** with larger cache
 - **Lower API costs** with Flash models
 
 ### Accuracy:
+
 - **95% detection accuracy** maintained
 - **<5% false positives** maintained
 - **92% intelligence extraction** (improved)
@@ -458,6 +492,7 @@ FAST_PATH_THRESHOLD = 6  # Default
 ## 🚀 Ready for Deployment!
 
 Your honeypot is now **highly optimized** for:
+
 - ✅ **Speed:** 4-10x faster responses
 - ✅ **Accuracy:** 95% maintained
 - ✅ **Cost:** 60-70% lower token usage
