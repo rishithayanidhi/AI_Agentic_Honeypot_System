@@ -6,7 +6,6 @@ from pydantic import ConfigDict
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
     
-    model_config = ConfigDict(extra='allow')  # Allow unlimited API keys
     
     # API Configuration
     API_KEY: str

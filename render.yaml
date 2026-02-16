@@ -15,7 +15,7 @@ services:
       
       # LLM Provider Configuration
       - key: LLM_PROVIDER
-        value: anthropic  # Options: anthropic, gemini, or openai
+        value: gemini  # Options: anthropic, gemini, or openai
       
       # Anthropic (Claude) Configuration - Primary Provider
       - key: ANTHROPIC_API_KEY
@@ -33,9 +33,21 @@ services:
         sync: false  # Optional: Add in Render Dashboard
       - key: GOOGLE_API_KEY_4
         sync: false  # Optional: Add in Render Dashboard
-      # To add more keys: Go to Render Dashboard → Environment → Add GOOGLE_API_KEY_5, GOOGLE_API_KEY_6, etc.
+      - key: GOOGLE_API_KEY_5
+        sync: false  # Optional: Add in Render Dashboard
+      - key: GOOGLE_API_KEY_6
+        sync: false  # Optional: Add in Render Dashboard
+      - key: GOOGLE_API_KEY_7
+        sync: false  # Optional: Add in Render Dashboard
+      - key: GOOGLE_API_KEY_8
+        sync: false  # Optional: Add in Render Dashboard
+      - key: GOOGLE_API_KEY_9
+        sync: false  # Optional: Add in Render Dashboard
+      - key: GOOGLE_API_KEY_10
+        sync: false  # Optional: Add in Render Dashboard
+      # To add more keys: Go to Render Dashboard → Environment → Add GOOGLE_API_KEY_11, GOOGLE_API_KEY_12, etc.
       - key: GEMINI_MODEL
-        value: gemini-2.0-flash-exp
+        value: models/gemini-2.5-flash
       
       # OpenAI Configuration (Optional)
       - key: OPENAI_API_KEY
@@ -51,9 +63,9 @@ services:
       - key: CACHE_MAX_SIZE
         value: 1000
       - key: LLM_MAX_TOKENS_DETECTION
-        value: 500
+        value: 1500
       - key: LLM_MAX_TOKENS_RESPONSE
-        value: 150
+        value: 2000
       - key: LLM_REQUEST_TIMEOUT
         value: 5
       - key: ENABLE_FAST_PATH
