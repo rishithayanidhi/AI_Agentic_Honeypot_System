@@ -9,6 +9,7 @@ class IntelligenceExtractor:
     # Regex patterns for extraction
     BANK_ACCOUNT_PATTERN = r'\b\d{9,18}\b'
     UPI_PATTERN = r'\b[\w\.-]+@[\w\.-]+\b'
+    EMAIL_PATTERN = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
     PHONE_PATTERN = r'\+?\d{10,15}'
     URL_PATTERN = r'https?://[^\s<>"{}|\\^`\[\]]+'
     
@@ -28,20 +29,27 @@ class IntelligenceExtractor:
         """Extract intelligence from a single message"""
         intel = ExtractedIntelligence()
         
+        # Extract phone numbers
+        phone_numbers = re.findall(self.PHONE_PATTERN, message)
+        intel.phoneNumbers = list(set(phone_numbers))
+        
         # Extract bank accounts
         bank_accounts = re.findall(self.BANK_ACCOUNT_PATTERN, message)
         intel.bankAccounts = list(set(bank_accounts))
         
+        # Extract email addresses first (for better separation from UPI)
+        email_addresses = re.findall(self.EMAIL_PATTERN, message)
+        # Filter out UPI IDs from email addresses
+        upi_providers = ['paytm', 'phonepe', 'gpay', 'okaxis', 'ybl', 'axl', 'ibl', 'okhdfcbank', 'oksbi']
+        email_addresses = [email for email in email_addresses 
+                          if not any(provider in email.lower() for provider in upi_providers)]
+        intel.emailAddresses = list(set(email_addresses))
+        
         # Extract UPI IDs
         upi_ids = re.findall(self.UPI_PATTERN, message)
-        # Filter out email-like patterns that aren't UPI
-        upi_ids = [uid for uid in upi_ids if any(provider in uid.lower() for provider in 
-                   ['paytm', 'phonepe', 'gpay', 'okaxis', 'ybl', 'axl', 'ibl', 'okhdfcbank', 'oksbi'])]
+        # Filter to only include UPI provider patterns
+        upi_ids = [uid for uid in upi_ids if any(provider in uid.lower() for provider in upi_providers)]
         intel.upiIds = list(set(upi_ids))
-        
-        # Extract phone numbers
-        phone_numbers = re.findall(self.PHONE_PATTERN, message)
-        intel.phoneNumbers = list(set(phone_numbers))
         
         # Extract URLs (potential phishing links)
         urls = re.findall(self.URL_PATTERN, message)
@@ -63,17 +71,19 @@ class IntelligenceExtractor:
                 intel = self.extract_from_message(msg.text)
                 
                 # Merge all extracted data
+                all_intel.phoneNumbers.extend(intel.phoneNumbers)
                 all_intel.bankAccounts.extend(intel.bankAccounts)
                 all_intel.upiIds.extend(intel.upiIds)
-                all_intel.phoneNumbers.extend(intel.phoneNumbers)
                 all_intel.phishingLinks.extend(intel.phishingLinks)
+                all_intel.emailAddresses.extend(intel.emailAddresses)
                 all_intel.suspiciousKeywords.extend(intel.suspiciousKeywords)
         
         # Remove duplicates
+        all_intel.phoneNumbers = list(set(all_intel.phoneNumbers))
         all_intel.bankAccounts = list(set(all_intel.bankAccounts))
         all_intel.upiIds = list(set(all_intel.upiIds))
-        all_intel.phoneNumbers = list(set(all_intel.phoneNumbers))
         all_intel.phishingLinks = list(set(all_intel.phishingLinks))
+        all_intel.emailAddresses = list(set(all_intel.emailAddresses))
         all_intel.suspiciousKeywords = list(set(all_intel.suspiciousKeywords))
         
         return all_intel
@@ -82,10 +92,11 @@ class IntelligenceExtractor:
         """Merge two intelligence objects"""
         merged = ExtractedIntelligence()
         
+        merged.phoneNumbers = list(set(existing.phoneNumbers + new.phoneNumbers))
         merged.bankAccounts = list(set(existing.bankAccounts + new.bankAccounts))
         merged.upiIds = list(set(existing.upiIds + new.upiIds))
-        merged.phoneNumbers = list(set(existing.phoneNumbers + new.phoneNumbers))
         merged.phishingLinks = list(set(existing.phishingLinks + new.phishingLinks))
+        merged.emailAddresses = list(set(existing.emailAddresses + new.emailAddresses))
         merged.suspiciousKeywords = list(set(existing.suspiciousKeywords + new.suspiciousKeywords))
         
         return merged

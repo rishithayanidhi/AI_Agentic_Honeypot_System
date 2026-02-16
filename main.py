@@ -467,12 +467,14 @@ async def handle_message(
                 logger.info(f"Session {session_id} complete: {end_reason}")
                 
                 # Send final results to GUVI
+                engagement_duration = int((datetime.now() - session.created_at).total_seconds())
                 success = guvi_callback.send_final_result(
                     session_id=session_id,
                     scam_detected=session.scam_detected,
                     total_messages=session.message_count,
                     extracted_intelligence=session.intelligence.model_dump(),
-                    agent_notes=session.agent_notes
+                    agent_notes=session.agent_notes,
+                    engagement_duration=engagement_duration
                 )
                 
                 if success:
@@ -503,10 +505,10 @@ async def handle_message(
                 },
                 "extractedIntelligence": {
                     "phoneNumbers": session.intelligence.phoneNumbers,
+                    "bankAccounts": session.intelligence.bankAccounts,
                     "upiIds": session.intelligence.upiIds,
                     "phishingLinks": session.intelligence.phishingLinks,
-                    "suspiciousKeywords": session.intelligence.suspiciousKeywords,
-                    "bankAccounts": session.intelligence.bankAccounts
+                    "emailAddresses": session.intelligence.emailAddresses
                 },
                 "detection": {
                     "is_scam": session.scam_detected,

@@ -18,19 +18,35 @@ class GUVICallback:
         scam_detected: bool,
         total_messages: int,
         extracted_intelligence: Dict[str, Any],
-        agent_notes: str
+        agent_notes: str,
+        engagement_duration: int = 0
     ) -> bool:
         """
         Send final results to GUVI evaluation endpoint
+        Matches exact evaluation format for maximum score
         
         Returns: True if successful, False otherwise
         """
         
+        # Prepare intelligence data - only include fields specified in evaluation
+        intel_data = {
+            "phoneNumbers": extracted_intelligence.get("phoneNumbers", []),
+            "bankAccounts": extracted_intelligence.get("bankAccounts", []),
+            "upiIds": extracted_intelligence.get("upiIds", []),
+            "phishingLinks": extracted_intelligence.get("phishingLinks", []),
+            "emailAddresses": extracted_intelligence.get("emailAddresses", [])
+        }
+        
         payload = {
             "sessionId": session_id,
+            "status": "completed",  # Response structure field (2.5 points)
             "scamDetected": scam_detected,
             "totalMessagesExchanged": total_messages,
-            "extractedIntelligence": extracted_intelligence,
+            "extractedIntelligence": intel_data,
+            "engagementMetrics": {  # Optional field (2.5 points)
+                "totalMessagesExchanged": total_messages,
+                "engagementDurationSeconds": engagement_duration
+            },
             "agentNotes": agent_notes
         }
         
@@ -67,11 +83,11 @@ class GUVICallback:
             return intelligence.dict()
         else:
             return {
+                "phoneNumbers": intelligence.phoneNumbers if hasattr(intelligence, 'phoneNumbers') else [],
                 "bankAccounts": intelligence.bankAccounts if hasattr(intelligence, 'bankAccounts') else [],
                 "upiIds": intelligence.upiIds if hasattr(intelligence, 'upiIds') else [],
                 "phishingLinks": intelligence.phishingLinks if hasattr(intelligence, 'phishingLinks') else [],
-                "phoneNumbers": intelligence.phoneNumbers if hasattr(intelligence, 'phoneNumbers') else [],
-                "suspiciousKeywords": intelligence.suspiciousKeywords if hasattr(intelligence, 'suspiciousKeywords') else []
+                "emailAddresses": intelligence.emailAddresses if hasattr(intelligence, 'emailAddresses') else []
             }
 
 

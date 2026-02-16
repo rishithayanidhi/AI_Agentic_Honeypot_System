@@ -57,10 +57,11 @@ class IncomingRequest(BaseModel):
 
 class ExtractedIntelligence(BaseModel):
     """Intelligence extracted from the scammer"""
+    phoneNumbers: List[str] = Field(default_factory=list)
     bankAccounts: List[str] = Field(default_factory=list)
     upiIds: List[str] = Field(default_factory=list)
     phishingLinks: List[str] = Field(default_factory=list)
-    phoneNumbers: List[str] = Field(default_factory=list)
+    emailAddresses: List[str] = Field(default_factory=list)
     suspiciousKeywords: List[str] = Field(default_factory=list)
 
 
