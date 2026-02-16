@@ -71,4 +71,4 @@ services:
       
       # Debug Mode (set to true for development)
       - key: INCLUDE_DEBUG_INFO
-        value: false
+        value: "false"
