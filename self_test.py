@@ -113,11 +113,14 @@ def test_honeypot_api():
             start_time = time.time()
             
             # Call your API
+            # First request: Allow up to 90s for Render cold start
+            # Subsequent requests: 20s timeout for speed
+            timeout = 90 if turn == 1 else 20
             response = requests.post(
                 ENDPOINT_URL,
                 headers=headers,
                 json=request_body,
-                timeout=30
+                timeout=timeout
             )
             
             response_time = time.time() - start_time
