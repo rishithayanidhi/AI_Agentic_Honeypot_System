@@ -1,0 +1,112 @@
+[
+  {
+    "scenarioId": "bank_fraud_otp",
+    "name": "Bank Fraud with OTP Request",
+    "description": "Urgent bank account compromise scam requesting OTP and account details",
+    "scamType": "bank_fraud",
+    "initialMessage": "URGENT: Your SBI account has been compromised. Your account will be blocked in 2 hours. Share your account number and OTP immediately to verify your identity.",
+    "metadata": {
+      "channel": "SMS",
+      "language": "English",
+      "locale": "IN"
+    },
+    "weight": 35,
+    "maxTurns": 10,
+    "fakeData": {
+      "bankAccount": "1234567890123456",
+      "phoneNumber": "+91-9876543210",
+      "upiId": "scammer.fraud@fakebank"
+    }
+  },
+  {
+    "scenarioId": "upi_cashback_scam",
+    "name": "UPI Fraud with Cashback Offer",
+    "description": "Fake cashback offer requiring UPI verification and personal details",
+    "scamType": "upi_fraud",
+    "initialMessage": "Congratulations! You have won a cashback of Rs. 5000 from Paytm. To claim your reward, please verify your UPI details. This is from official customer support.",
+    "metadata": {
+      "channel": "WhatsApp",
+      "language": "English",
+      "locale": "IN"
+    },
+    "weight": 35,
+    "maxTurns": 10,
+    "fakeData": {
+      "upiId": "cashback.scam@fakeupi",
+      "phoneNumber": "+91-8765432109"
+    }
+  },
+  {
+    "scenarioId": "phishing_link_iphone",
+    "name": "Phishing Link with Fake Product Offer",
+    "description": "Phishing attack using fake product offer with malicious link",
+    "scamType": "phishing",
+    "initialMessage": "You have been selected for iPhone 15 Pro at just Rs. 999! Click here to claim: http://amaz0n-deals.fake-site.com/claim?id=12345. Offer expires in 10 minutes!",
+    "metadata": {
+      "channel": "Email",
+      "language": "English",
+      "locale": "IN"
+    },
+    "weight": 30,
+    "maxTurns": 10,
+    "fakeData": {
+      "phishingLink": "http://amaz0n-deals.fake-site.com/claim?id=12345",
+      "emailAddress": "offers@fake-amazon-deals.com"
+    }
+  },
+  {
+    "scenarioId": "insurance_fraud_policy",
+    "name": "Insurance Policy Lapse Scam",
+    "description": "Fake insurance company claiming policy lapse with payment urgency",
+    "scamType": "bank_fraud",
+    "initialMessage": "LIC ALERT: Your insurance policy POL123456789 has lapsed! All benefits will be lost in 24 hours. Pay renewal premium of Rs. 25,000 immediately to revive. UPI: lic-renewal@fakepayment.insure Call: +91-6655443322",
+    "metadata": {
+      "channel": "SMS",
+      "language": "English",
+      "locale": "IN"
+    },
+    "weight": 30,
+    "maxTurns": 10,
+    "fakeData": {
+      "phoneNumber": "+91-6655443322",
+      "upiId": "lic-renewal@fakepayment.insure",
+      "bankAccount": "9988776655443322"
+    }
+  },
+  {
+    "scenarioId": "lottery_winner_scam",
+    "name": "Lottery Winner Tax Payment Scam",
+    "description": "Fake lottery win requiring tax payment upfront",
+    "scamType": "fake_offer",
+    "initialMessage": "CONGRATULATIONS! You've won Rs. 50 Lakhs in the KBC Lottery Draw #2026! To claim your prize, pay processing tax of Rs. 5,000 via UPI: kbc.winner@taxfake. Contact: +91-7766554433",
+    "metadata": {
+      "channel": "SMS",
+      "language": "English",
+      "locale": "IN"
+    },
+    "weight": 25,
+    "maxTurns": 10,
+    "fakeData": {
+      "phoneNumber": "+91-7766554433",
+      "upiId": "kbc.winner@taxfake"
+    }
+  },
+  {
+    "scenarioId": "investment_crypto_scam",
+    "name": "Cryptocurrency Investment Scam",
+    "description": "High-return crypto investment scam with urgency tactics",
+    "scamType": "investment_scam",
+    "initialMessage": "🚀 LIMITED OFFER! Invest in Bitcoin now and get 300% returns in 30 days GUARANTEED! Minimum Rs. 10,000. Register now: http://crypto-invest-profit.scam/join?ref=IND2026 WhatsApp: +91-9988776655",
+    "metadata": {
+      "channel": "WhatsApp",
+      "language": "English",
+      "locale": "IN"
+    },
+    "weight": 25,
+    "maxTurns": 10,
+    "fakeData": {
+      "phoneNumber": "+91-9988776655",
+      "phishingLink": "http://crypto-invest-profit.scam/join?ref=IND2026"
+    }
+  }
+]

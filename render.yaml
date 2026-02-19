@@ -7,14 +7,13 @@
 # 🚨 REQUIRED STEPS AFTER DEPLOYING:
 # 1. Go to: https://dashboard.render.com
 # 2. Select your service → Environment tab
-# 3. Manually add these variables (copy from RENDER_ENV_VARIABLES.txt):
+# 3. Manually add these variables (copy from copy_env_for_render.py output):
 #    - API_KEY
-#    - GOOGLE_API_KEY (and _2, _3, _4, _5, _6, _7, _8, _9, _10)
-#    - ANTHROPIC_API_KEY (optional backup)
+#    - GOOGLE_API_KEY (and _2, _5, _6, _7, _8, _9, _10)
 # 4. Mark all API keys as "Secret" (eye icon)
 # 5. Save and redeploy
 #
-# 📖 Full guide: See RENDER_API_KEY_FIX.md
+# 📖 Full guide: See RENDER_PRODUCTION_DEPLOYMENT.md
 # =============================================================================
 
 services:
@@ -34,13 +33,7 @@ services:
       
       # LLM Provider Configuration
       - key: LLM_PROVIDER
-        value: gemini  # Options: anthropic, gemini, or openai
-      
-      # Anthropic (Claude) Configuration - Primary Provider
-      - key: ANTHROPIC_API_KEY
-        sync: false  # Set in Render Dashboard
-      - key: ANTHROPIC_MODEL
-        value: claude-haiku-4.5-20250110
+        value: gemini  # PRODUCTION: Using Gemini (8 working keys)
       
       # Gemini Configuration - UNLIMITED API Keys Support
       # Add as many keys as needed: GOOGLE_API_KEY, GOOGLE_API_KEY_2, GOOGLE_API_KEY_3, etc.
@@ -66,19 +59,13 @@ services:
         sync: false  # Optional: Add in Render Dashboard
       # To add more keys: Go to Render Dashboard → Environment → Add GOOGLE_API_KEY_11, GOOGLE_API_KEY_12, etc.
       - key: GEMINI_MODEL
-        value: models/gemini-2.5-flash
-      
-      # OpenAI Configuration (Optional)
-      - key: OPENAI_API_KEY
-        sync: false  # Optional: Set in Render Dashboard
-      - key: OPENAI_MODEL
-        value: gpt-4-turbo-preview
+        value: gemini-2.5-flash
       
       # GUVI Callback Configuration
       - key: GUVI_CALLBACK_URL
         value: https://hackathon.guvi.in/api/updateHoneyPotFinalResult
       
-      # Performance Configuration - OPTIMIZED FOR SPEED
+      # Performance Configuration - OPTIMIZED FOR PRODUCTION
       - key: CACHE_MAX_SIZE
         value: 1000
       - key: LLM_MAX_TOKENS_DETECTION
@@ -86,7 +73,9 @@ services:
       - key: LLM_MAX_TOKENS_RESPONSE
         value: 2000
       - key: LLM_REQUEST_TIMEOUT
-        value: 5
+        value: 20
+      - key: LLM_TEMPERATURE
+        value: 0.7
       - key: ENABLE_FAST_PATH
         value: "true"
       - key: FAST_PATH_THRESHOLD
