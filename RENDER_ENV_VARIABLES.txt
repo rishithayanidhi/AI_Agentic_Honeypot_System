@@ -1,28 +1,22 @@
-# ========================================
-# RENDER ENVIRONMENT VARIABLES
-# Complete Configuration for Deployment
-# ========================================
-# Copy these values to Render Dashboard → Environment
-# Go to: https://dashboard.render.com → Your Service → Environment
-# ========================================
+# =============================================================================
+# COMPLETE RENDER ENVIRONMENT VARIABLES
+# Copy these to Render Dashboard → Environment Tab
+# =============================================================================
 
-# API Configuration
+# =============================================================================
+# 🔐 CORE CONFIGURATION (REQUIRED)
+# =============================================================================
+
 API_KEY=honeypot-secret-2026
 PORT=8000
 HOST=0.0.0.0
-
-# LLM Provider Configuration
 LLM_PROVIDER=gemini
 
-# ========================================
-# Anthropic Configuration
-# ========================================
-ANTHROPIC_API_KEY=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
-ANTHROPIC_MODEL=claude-haiku-4.5-20250110
+# =============================================================================
+# 🔑 GOOGLE GEMINI API KEYS (REQUIRED - ALL 10 KEYS)
+# =============================================================================
+# Mark all these as SECRET in Render Dashboard!
 
-# ========================================
-# Google Gemini Configuration - ALL 10 API KEYS
-# ========================================
 GOOGLE_API_KEY=AIzaSyBFagfSKwSupA9CKDbvDKB7MuhLhzMsc3Q
 GOOGLE_API_KEY_2=AIzaSyClwAyKKQQwny2cnuJtZrqGJX9e6uy25s0
 GOOGLE_API_KEY_3=AIzaSyAqyskyGiO_W2sulGt5rgd2kRpqKtIppkw
@@ -33,22 +27,34 @@ GOOGLE_API_KEY_7=AIzaSyDfJUgLV12EpMge0Kc5QEoljvck7eLQcCc
 GOOGLE_API_KEY_8=AIzaSyAJSsczAaVJHqdU4LcEvXs2Tf23Qo3jBn4
 GOOGLE_API_KEY_9=AIzaSyC1GB9J_XAQwgt3QlvCkXseg1-zXyccasU
 GOOGLE_API_KEY_10=AIzaSyACrmRuwxg1P6f_Ee386YSZrxubJW5i73o
+
 GEMINI_MODEL=models/gemini-2.5-flash
 
-# ========================================
-# GUVI Hackathon Configuration
-# ========================================
+# =============================================================================
+# 🔑 ANTHROPIC API KEY (OPTIONAL BACKUP)
+# =============================================================================
+# Mark as SECRET in Render Dashboard!
+
+ANTHROPIC_API_KEY=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
+ANTHROPIC_MODEL=claude-haiku-4.5-20250110
+
+# =============================================================================
+# 🔗 GUVI HACKATHON CONFIGURATION
+# =============================================================================
+
 GUVI_CALLBACK_URL=https://hackathon.guvi.in/api/updateHoneyPotFinalResult
 
-# ========================================
-# Session Management
-# ========================================
+# =============================================================================
+# 📊 SESSION MANAGEMENT
+# =============================================================================
+
 SESSION_TIMEOUT_MINUTES=30
 MAX_MESSAGES_PER_SESSION=50
 
-# ========================================
-# Performance Configuration
-# ========================================
+# =============================================================================
+# ⚡ PERFORMANCE CONFIGURATION
+# =============================================================================
+
 CACHE_MAX_SIZE=1000
 LLM_MAX_TOKENS_DETECTION=1500
 LLM_MAX_TOKENS_RESPONSE=2000
@@ -56,19 +62,24 @@ LLM_REQUEST_TIMEOUT=5
 LLM_TEMPERATURE_DETECTION=0.1
 LLM_TEMPERATURE_RESPONSE=0.7
 
-# Fast-path optimization (10x faster for obvious scams)
+# =============================================================================
+# 🚀 FAST-PATH OPTIMIZATION
+# =============================================================================
+
 ENABLE_FAST_PATH=true
 FAST_PATH_THRESHOLD=6
 
-# ========================================
-# Security Settings
-# ========================================
+# =============================================================================
+# 🔒 SECURITY SETTINGS
+# =============================================================================
+
 RATE_LIMIT_PER_MINUTE=60
 MAX_REQUEST_SIZE=1048576
 
-# ========================================
-# Scam Detection Configuration
-# ========================================
+# =============================================================================
+# 🎯 SCAM DETECTION CONFIGURATION
+# =============================================================================
+
 SCAM_DETECTION_THRESHOLD=0.5
 SCAM_SCORE_THRESHOLD=2
 LOTTERY_CONFIDENCE_MULTIPLIER=0.3
@@ -79,34 +90,33 @@ GENERIC_CONFIDENCE_MULTIPLIER=0.25
 MAX_CONFIDENCE=0.95
 MIN_CONFIDENCE_NOT_SCAM=0.4
 
-# ========================================
-# Debug & Redis Configuration
-# ========================================
+# =============================================================================
+# 🎭 CONVERSATION CONFIGURATION
+# =============================================================================
+
+PERSONA_CHANGE_INTERVAL=5
+EARLY_STAGE_THRESHOLD=3
+
+# =============================================================================
+# 🐛 DEBUG & REDIS CONFIGURATION
+# =============================================================================
+
 INCLUDE_DEBUG_INFO=false
 USE_REDIS=false
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_DB=0
 
-# ========================================
-# Conversation Configuration
-# ========================================
-PERSONA_CHANGE_INTERVAL=5
-EARLY_STAGE_THRESHOLD=3
-
-# ========================================
-# DEPLOYMENT INSTRUCTIONS
-# ========================================
-# 1. Go to Render Dashboard: https://dashboard.render.com
-# 2. Select your service (ai-agentic-honeypot-system)
-# 3. Click "Environment" in the left sidebar
-# 4. Click "Add Environment Variable" for each variable above
-# 5. Copy the KEY and VALUE pairs
-# 6. Click "Save Changes"
-# 7. Your service will automatically redeploy
+# =============================================================================
+# ✅ QUICK DEPLOYMENT GUIDE
+# =============================================================================
 #
-# IMPORTANT: Mark sensitive keys as "Secret" in Render:
-# - API_KEY
-# - ANTHROPIC_API_KEY
-# - All GOOGLE_API_KEY* variables
-# ========================================
+# 1. Go to: https://dashboard.render.com
+# 2. Select: ai-agentic-honeypot-system
+# 3. Click: Environment tab
+# 4. Add each variable above (KEY=VALUE)
+# 5. Mark as SECRET: API_KEY, all GOOGLE_API_KEY*, ANTHROPIC_API_KEY
+# 6. Save Changes → Auto redeploys
+# 7. Check logs for: "✅ AI Agent: 10 Gemini API key(s) initialized"
+#
+# =============================================================================

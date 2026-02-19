@@ -1,3 +1,22 @@
+# =============================================================================
+# RENDER DEPLOYMENT CONFIGURATION
+# =============================================================================
+# IMPORTANT: This file defines the service structure, but API KEYS must be
+# manually added in the Render Dashboard!
+#
+# 🚨 REQUIRED STEPS AFTER DEPLOYING:
+# 1. Go to: https://dashboard.render.com
+# 2. Select your service → Environment tab
+# 3. Manually add these variables (copy from RENDER_ENV_VARIABLES.txt):
+#    - API_KEY
+#    - GOOGLE_API_KEY (and _2, _3, _4, _5, _6, _7, _8, _9, _10)
+#    - ANTHROPIC_API_KEY (optional backup)
+# 4. Mark all API keys as "Secret" (eye icon)
+# 5. Save and redeploy
+#
+# 📖 Full guide: See RENDER_API_KEY_FIX.md
+# =============================================================================
+
 services:
   - type: web
     name: ai-agentic-honeypot-system

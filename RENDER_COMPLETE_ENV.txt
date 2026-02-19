@@ -1,0 +1,166 @@
+# =============================================================================
+# COMPLETE RENDER ENVIRONMENT VARIABLES
+# Copy these to Render Dashboard → Environment Tab
+# =============================================================================
+# 
+# HOW TO USE:
+# 1. Go to https://dashboard.render.com
+# 2. Select your service: ai-agentic-honeypot-system
+# 3. Click "Environment" in the left sidebar
+# 4. For each line below, click "Add Environment Variable"
+# 5. Copy the KEY (before =) into "Key" field
+# 6. Copy the VALUE (after =) into "Value" field
+# 7. Mark all API keys as "Secret" (click eye icon)
+# 8. Click "Save Changes" and redeploy
+#
+# =============================================================================
+
+# =============================================================================
+# 🔐 CORE CONFIGURATION (REQUIRED)
+# =============================================================================
+
+API_KEY=honeypot-secret-2026
+PORT=8000
+HOST=0.0.0.0
+LLM_PROVIDER=gemini
+
+# =============================================================================
+# 🔑 GOOGLE GEMINI API KEYS (REQUIRED - ALL 10 KEYS)
+# =============================================================================
+# Mark all these as SECRET in Render Dashboard!
+
+GOOGLE_API_KEY=AIzaSyBFagfSKwSupA9CKDbvDKB7MuhLhzMsc3Q
+GOOGLE_API_KEY_2=AIzaSyClwAyKKQQwny2cnuJtZrqGJX9e6uy25s0
+GOOGLE_API_KEY_3=AIzaSyAqyskyGiO_W2sulGt5rgd2kRpqKtIppkw
+GOOGLE_API_KEY_4=AIzaSyB_utyys4t4pgfy963N9XQdmfa9tOfJOaU
+GOOGLE_API_KEY_5=AIzaSyD81wLwL38FUQBoLqryrIS_of-tz4L9FvI
+GOOGLE_API_KEY_6=AIzaSyBgc1l9u-uwHMHNKEcPWWJBZRuUn7qzeMk
+GOOGLE_API_KEY_7=AIzaSyDfJUgLV12EpMge0Kc5QEoljvck7eLQcCc
+GOOGLE_API_KEY_8=AIzaSyAJSsczAaVJHqdU4LcEvXs2Tf23Qo3jBn4
+GOOGLE_API_KEY_9=AIzaSyC1GB9J_XAQwgt3QlvCkXseg1-zXyccasU
+GOOGLE_API_KEY_10=AIzaSyACrmRuwxg1P6f_Ee386YSZrxubJW5i73o
+
+GEMINI_MODEL=models/gemini-2.5-flash
+
+# =============================================================================
+# 🔑 ANTHROPIC API KEY (OPTIONAL BACKUP)
+# =============================================================================
+# Mark as SECRET in Render Dashboard!
+
+ANTHROPIC_API_KEY=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
+ANTHROPIC_MODEL=claude-haiku-4.5-20250110
+
+# =============================================================================
+# 🔗 GUVI HACKATHON CONFIGURATION
+# =============================================================================
+
+GUVI_CALLBACK_URL=https://hackathon.guvi.in/api/updateHoneyPotFinalResult
+
+# =============================================================================
+# 📊 SESSION MANAGEMENT
+# =============================================================================
+
+SESSION_TIMEOUT_MINUTES=30
+MAX_MESSAGES_PER_SESSION=50
+
+# =============================================================================
+# ⚡ PERFORMANCE CONFIGURATION
+# =============================================================================
+
+CACHE_MAX_SIZE=1000
+LLM_MAX_TOKENS_DETECTION=1500
+LLM_MAX_TOKENS_RESPONSE=2000
+LLM_REQUEST_TIMEOUT=5
+LLM_TEMPERATURE_DETECTION=0.1
+LLM_TEMPERATURE_RESPONSE=0.7
+
+# =============================================================================
+# 🚀 FAST-PATH OPTIMIZATION
+# =============================================================================
+
+ENABLE_FAST_PATH=true
+FAST_PATH_THRESHOLD=6
+
+# =============================================================================
+# 🔒 SECURITY SETTINGS
+# =============================================================================
+
+RATE_LIMIT_PER_MINUTE=60
+MAX_REQUEST_SIZE=1048576
+
+# =============================================================================
+# 🎯 SCAM DETECTION CONFIGURATION
+# =============================================================================
+
+SCAM_DETECTION_THRESHOLD=0.5
+SCAM_SCORE_THRESHOLD=2
+LOTTERY_CONFIDENCE_MULTIPLIER=0.3
+BANK_FRAUD_CONFIDENCE_MULTIPLIER=0.25
+UPI_CONFIDENCE_MULTIPLIER=0.3
+PHISHING_CONFIDENCE_MULTIPLIER=0.35
+GENERIC_CONFIDENCE_MULTIPLIER=0.25
+MAX_CONFIDENCE=0.95
+MIN_CONFIDENCE_NOT_SCAM=0.4
+
+# =============================================================================
+# 🎭 CONVERSATION CONFIGURATION
+# =============================================================================
+
+PERSONA_CHANGE_INTERVAL=5
+EARLY_STAGE_THRESHOLD=3
+
+# =============================================================================
+# 🐛 DEBUG & REDIS CONFIGURATION
+# =============================================================================
+
+INCLUDE_DEBUG_INFO=false
+USE_REDIS=false
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_DB=0
+
+# =============================================================================
+# ✅ DEPLOYMENT CHECKLIST
+# =============================================================================
+#
+# After adding all variables above:
+#
+# 1. ✅ Mark these as SECRET (eye icon 👁️):
+#    - API_KEY
+#    - GOOGLE_API_KEY (all 10 of them)
+#    - ANTHROPIC_API_KEY
+#
+# 2. ✅ Verify all variables are added:
+#    - Total: ~45 environment variables
+#    - 10 Google API keys
+#    - 1 Anthropic API key
+#
+# 3. ✅ Click "Save Changes"
+#
+# 4. ✅ Wait for automatic redeploy (2-3 minutes)
+#
+# 5. ✅ Check logs for:
+#    "✅ AI Agent: 10 Gemini API key(s) initialized"
+#
+# 6. ✅ Test the API:
+#    curl -X POST https://your-service.onrender.com/api/message \
+#      -H "Content-Type: application/json" \
+#      -H "X-API-Key: honeypot-secret-2026" \
+#      -d '{"sessionId":"test-123","message":{"sender":"scammer","text":"Test message","timestamp":"2026-02-16T08:00:00"}}'
+#
+# =============================================================================
+# 🆘 TROUBLESHOOTING
+# =============================================================================
+#
+# If you see "API Key not found" error:
+# - Double-check variable NAMES (e.g., GOOGLE_API_KEY_2 not GOOGLE_API_KEY2)
+# - Ensure no extra spaces before/after values
+# - Verify all 10 Google keys are added
+# - Try removing and re-adding the keys
+#
+# If deployment fails:
+# - Check Render logs for specific errors
+# - Ensure requirements.txt is up to date
+# - Verify Python version is 3.13 or compatible
+#
+# =============================================================================

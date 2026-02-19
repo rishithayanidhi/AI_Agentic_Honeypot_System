@@ -126,12 +126,12 @@ class AIAgent:
                 # Try all Gemini clients with rotation on quota errors
                 last_error = None
                 
-                # Prioritize Flash models for SPEED (2x faster than Pro)
+                # Valid Gemini models (Feb 2026) - prioritize Flash for speed
                 gemini_models = [
-                    'gemini-2.0-flash-exp',          # Fastest, newest
-                    'gemini-1.5-flash',              # Fast, stable
-                    'gemini-1.5-flash-latest',       # Fast latest
-                    self.models.get('gemini', 'gemini-pro'),  # User configured
+                    'gemini-2.5-flash',              # Newest flash model (fast)
+                    'gemini-1.5-pro',                # Stable production model
+                    self.models.get('gemini', 'gemini-pro'),  # User configured fallback
+                    'gemini-1.0-pro',                # Older stable fallback
                 ]
                 
                 # Try each Gemini client (rotating through API keys)
