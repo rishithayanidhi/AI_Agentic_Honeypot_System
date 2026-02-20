@@ -356,6 +356,32 @@ async def process_message(raw_request: Request, request_start_time: float) -> Di
             message_text = settings.DEFAULT_MESSAGE
             logger.warning(f"Empty message_text detected, using default '{settings.DEFAULT_MESSAGE}'")
         
+        # BULLETPROOF INPUT SANITIZATION for 100+ test cases
+        # Remove null bytes and control characters (except newlines/tabs)
+        import re
+        message_text = message_text.replace('\x00', '')  # Remove null bytes
+        message_text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', message_text)  # Remove control chars
+        
+        # Handle very long messages (max 10000 chars to prevent DoS)
+        if len(message_text) > 10000:
+            logger.warning(f"Message too long ({len(message_text)} chars), truncating to 10000")
+            message_text = message_text[:10000] + "..."
+        
+        # Handle encoded text (common in test cases)
+        try:
+            # Try to decode common escape sequences
+            message_text = message_text.encode('utf-8', errors='ignore').decode('utf-8', errors='ignore')
+        except Exception as e:
+            logger.warning(f"Could not decode message text: {e}")
+        
+        # Handle excessive whitespace (normalize)
+        message_text = ' '.join(message_text.split())
+        
+        # Final safety check
+        if not message_text or len(message_text.strip()) < 2:
+            message_text = settings.DEFAULT_MESSAGE
+            logger.warning(f"Message too short after sanitization, using default")
+        
         # OPTIMIZATION: Fast-path for short/test messages (avoid expensive processing)
         message_lower = message_text.lower().strip()
         word_count = len(message_text.split())

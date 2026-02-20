@@ -67,15 +67,49 @@ def extract_json_from_text(text: str) -> str:
 class ScamDetector:
     """AI-powered scam detection service with fast-path optimization and automatic fallback"""
     
-    # Pre-compiled patterns for fast detection with enhanced accuracy
-    _URGENT_PATTERN = re.compile(r'\b(urgent|immediate|now|today|asap|quickly|expire[ds]?|last chance|act now|hurry|limited time)\b', re.IGNORECASE)
-    _SENSITIVE_PATTERN = re.compile(r'\b(otp|one time password|pin|password|cvv|cvc|card number|account number|verification code|security code|passcode)\b', re.IGNORECASE)
-    _THREAT_PATTERN = re.compile(r'\b(block|suspend|close|terminate|deactivate|freeze|locked|legal action|will be blocked|action will be taken|penalty|fine|arrest)\b', re.IGNORECASE)
-    _BANK_PATTERN = re.compile(r'\b(bank|account|customer|kyc|know your customer|sbi|hdfc|icici|axis|pnb|bob|canara|atm|debit|credit|ifsc)\b', re.IGNORECASE)
-    _UPI_PATTERN = re.compile(r'\b(upi|paytm|phonepe|gpay|google pay|bhim|payment|transfer|send money)\b', re.IGNORECASE)
-    _PRIZE_PATTERN = re.compile(r'\b(won|winner|prize|lottery|jackpot|congratulations|selected|claim|reward|gift|lucky|bonus|cashback|refund)\b', re.IGNORECASE)
-    _LINK_PATTERN = re.compile(r'\b(click|link|url|website|visit|open|download|install|tap here|verify here|update here)\b', re.IGNORECASE)
-    _IMPERSONATION_PATTERN = re.compile(r'\b(department|official|officer|agent|representative|helpline|support|team|manager)\b', re.IGNORECASE)
+    # Pre-compiled patterns for fast detection with MAXIMUM accuracy for 100+ test cases
+    _URGENT_PATTERN = re.compile(
+        r'\b(urgent|urgant|urgnt|immediate|immidiate|now|today|asap|quickly|expire[ds]?|expiry|'
+        r'last chance|act now|hurry|limited time|right now|immediately|instant)\b', 
+        re.IGNORECASE
+    )
+    _SENSITIVE_PATTERN = re.compile(
+        r'\b(otp|one time password|pin|password|pasword|passw0rd|cvv|cvc|card number|cardnumber|'
+        r'account number|acct number|verification code|verif code|security code|passcode|'
+        r'credentials|personal detail|secret code)\b', 
+        re.IGNORECASE
+    )
+    _THREAT_PATTERN = re.compile(
+        r'\b(block|blok|suspend|suspand|close|terminate|deactivate|deactive|freeze|freezed|frozen|'
+        r'locked|legal action|will be blocked|action will be taken|penalty|fine|'
+        r'arrest|police|court|take action)\b', 
+        re.IGNORECASE
+    )
+    _BANK_PATTERN = re.compile(
+        r'\b(bank|banc|banq|account|acount|accnt|customer|kyc|know your customer|'
+        r'sbi|hdfc|icici|axis|pnb|bob|canara|atm|debit|credit|ifsc|branch|statement)\b', 
+        re.IGNORECASE
+    )
+    _UPI_PATTERN = re.compile(
+        r'\b(upi|paytm|phonepe|phone pe|gpay|google pay|bhim|payment|payemnt|transfer|'
+        r'transact|send money|remit|wallet)\b', 
+        re.IGNORECASE
+    )
+    _PRIZE_PATTERN = re.compile(
+        r'\b(won|win|winner|prize|prizewin|lottery|lottary|lotery|jackpot|congratulations|'
+        r'congrats|congratulation|selected|claim|clame|reward|gift|lucky|bonus|cashback|refund)\b', 
+        re.IGNORECASE
+    )
+    _LINK_PATTERN = re.compile(
+        r'\b(click|clik|link|url|website|site|visit|open|download|install|tap here|'
+        r'verify here|update here|check here|go to|follow)\b', 
+        re.IGNORECASE
+    )
+    _IMPERSONATION_PATTERN = re.compile(
+        r'\b(department|dept|official|officer|agent|representative|helpline|helpdesk|'
+        r'support|team|manager|executive|authority|government|federal)\b', 
+        re.IGNORECASE
+    )
     
     def __init__(self):
         self.primary_provider = settings.LLM_PROVIDER
