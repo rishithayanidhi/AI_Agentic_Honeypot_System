@@ -130,6 +130,20 @@ class Settings(BaseSettings):
     PERSONA_CHANGE_INTERVAL: int = 5  # Change persona every N messages
     EARLY_STAGE_THRESHOLD: int = 3  # Messages before mid-conversation
     
+    # Dynamic Response Messages (fully configurable)
+    DEFAULT_MESSAGE: str = "Hello"  # Fallback for empty messages
+    EMPTY_RESPONSE: str = "Hello! I'm the AI honeypot agent. Send me a message to test."
+    EMPTY_MESSAGE_RESPONSE: str = "Hello! I'm the AI honeypot agent ready to engage with scammers."
+    FAST_PATH_RESPONSE: str = "Hello! I'm listening. What would you like to discuss?"
+    SESSION_COMPLETE_RESPONSE: str = "Thank you for your message. This conversation has ended."
+    
+    # Fast-Path Scam Detection Keywords (comma-separated in .env)
+    FAST_PATH_SCAM_KEYWORDS: str = "urgent,otp,blocked,suspend,compromised,verify account,bank account,prize,won,lottery,claim,winner"
+    
+    def get_fast_path_keywords(self) -> List[str]:
+        """Parse comma-separated fast-path keywords"""
+        return [k.strip().lower() for k in self.FAST_PATH_SCAM_KEYWORDS.split(',') if k.strip()]
+    
     # Pydantic v2 configuration
     model_config = ConfigDict(
         env_file=".env",

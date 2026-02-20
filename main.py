@@ -301,7 +301,7 @@ async def process_message(raw_request: Request, request_start_time: float) -> Di
                 logger.info("Empty request body received - returning test response")
                 return {
                     "status": "success",
-                    "reply": "Hello! I'm the AI honeypot agent. Send me a message to test."
+                    "reply": settings.EMPTY_RESPONSE
                 }
         except json.JSONDecodeError as je:
             logger.warning(f"Invalid JSON in request body: {je}, using default")
@@ -326,11 +326,11 @@ async def process_message(raw_request: Request, request_start_time: float) -> Di
             logger.info("Empty message received - returning quick test response")
             return {
                 "status": "success",
-                "reply": "Hello! I'm the AI honeypot agent ready to engage with scammers."
+                "reply": settings.EMPTY_MESSAGE_RESPONSE
             }
         elif isinstance(request.message, str):
             # Simple string message
-            message_text = request.message if request.message else "Hello"
+            message_text = request.message if request.message else settings.DEFAULT_MESSAGE
             message_obj = Message(
                 sender="scammer",
                 text=message_text,
@@ -338,9 +338,9 @@ async def process_message(raw_request: Request, request_start_time: float) -> Di
             )
         elif isinstance(request.message, dict):
             # Dictionary format - convert to Message
-            message_text = request.message.get("text", request.message.get("message", "Hello"))
+            message_text = request.message.get("text", request.message.get("message", settings.DEFAULT_MESSAGE))
             if not message_text:  # Ensure we have text
-                message_text = "Hello"
+                message_text = settings.DEFAULT_MESSAGE
             message_obj = Message(
                 sender=request.message.get("sender", "scammer"),
                 text=message_text,
@@ -349,19 +349,18 @@ async def process_message(raw_request: Request, request_start_time: float) -> Di
         else:
             # Message object
             message_obj = request.message
-            message_text = request.message.text if request.message.text else "Hello"
+            message_text = request.message.text if request.message.text else settings.DEFAULT_MESSAGE
         
         # SAFETY: Ensure message_text is never empty to prevent errors
         if not message_text or not message_text.strip():
-            message_text = "Hello"
-            logger.warning("Empty message_text detected, using default 'Hello'")
+            message_text = settings.DEFAULT_MESSAGE
+            logger.warning(f"Empty message_text detected, using default '{settings.DEFAULT_MESSAGE}'")
         
         # OPTIMIZATION: Fast-path for short/test messages (avoid expensive processing)
         message_lower = message_text.lower().strip()
         word_count = len(message_text.split())
         has_strong_scam_keywords = any(
-            keyword in message_lower for keyword in 
-            ["urgent", "otp", "blocked", "suspend", "compromised", "verify account", "bank account", "prize", "won"]
+            keyword in message_lower for keyword in settings.get_fast_path_keywords()
         )
         
         # Fast return for very short messages (3 words or less) without scam indicators
@@ -372,7 +371,7 @@ async def process_message(raw_request: Request, request_start_time: float) -> Di
             health_monitor.fast_path_hits += 1
             return {
                 "status": "success",
-                "reply": "Hello! I'm listening. What would you like to discuss?"
+                "reply": settings.FAST_PATH_RESPONSE
             }
         
         # Handle conversation history
@@ -388,7 +387,7 @@ async def process_message(raw_request: Request, request_start_time: float) -> Di
             return {
                 "status": "success",
                 "scamDetected": True,
-                "agentResponse": "Thank you for your message. This conversation has ended.",
+                "agentResponse": settings.SESSION_COMPLETE_RESPONSE,
                 "sessionComplete": True,
                 "detection": {
                     "is_scam": True,

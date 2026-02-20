@@ -43,6 +43,16 @@ performance_vars = {
     'LLM_TEMPERATURE': '0.7',
     'ENABLE_FAST_PATH': 'true',
     'FAST_PATH_THRESHOLD': '3',
+    'FAST_PATH_SCAM_KEYWORDS': os.getenv('FAST_PATH_SCAM_KEYWORDS', 'urgent,otp,blocked,suspend,compromised,verify account,bank account,prize,won,lottery,claim,winner'),
+}
+
+# Dynamic response messages
+response_vars = {
+    'DEFAULT_MESSAGE': os.getenv('DEFAULT_MESSAGE', 'Hello'),
+    'EMPTY_RESPONSE': os.getenv('EMPTY_RESPONSE', "Hello! I'm the AI honeypot agent. Send me a message to test."),
+    'EMPTY_MESSAGE_RESPONSE': os.getenv('EMPTY_MESSAGE_RESPONSE', "Hello! I'm the AI honeypot agent ready to engage with scammers."),
+    'FAST_PATH_RESPONSE': os.getenv('FAST_PATH_RESPONSE', "Hello! I'm listening. What would you like to discuss?"),
+    'SESSION_COMPLETE_RESPONSE': os.getenv('SESSION_COMPLETE_RESPONSE', 'Thank you for your message. This conversation has ended.'),
 }
 
 # Session settings
@@ -92,6 +102,11 @@ for key, value in security_vars.items():
     print(f"{key}={value}")
 
 print()
+print("# Dynamic Response Messages")
+for key, value in response_vars.items():
+    print(f"{key}={value}")
+
+print()
 print("# Debug Settings")
 for key, value in debug_vars.items():
     print(f"{key}={value}")
@@ -99,7 +114,7 @@ for key, value in debug_vars.items():
 print()
 print("-" * 80)
 print()
-print(f"✅ Total Variables: {len(essential_vars) + len(gemini_keys) + len(performance_vars) + len(session_vars) + len(security_vars) + len(debug_vars)}")
+print(f"✅ Total Variables: {len(essential_vars) + len(gemini_keys) + len(performance_vars) + len(session_vars) + len(security_vars) + len(response_vars) + len(debug_vars)}")
 print(f"✅ Gemini API Keys: {len(gemini_keys)}")
 print(f"✅ Daily Capacity: ~{len(gemini_keys) * 20} requests/day")
 print()

@@ -80,6 +80,20 @@ services:
         value: "true"
       - key: FAST_PATH_THRESHOLD
         value: 3
+      - key: FAST_PATH_SCAM_KEYWORDS
+        value: urgent,otp,blocked,suspend,compromised,verify account,bank account,prize,won,lottery,claim,winner
+      
+      # Dynamic Response Messages
+      - key: DEFAULT_MESSAGE
+        value: Hello
+      - key: EMPTY_RESPONSE
+        value: Hello! I'm the AI honeypot agent. Send me a message to test.
+      - key: EMPTY_MESSAGE_RESPONSE
+        value: Hello! I'm the AI honeypot agent ready to engage with scammers.
+      - key: FAST_PATH_RESPONSE
+        value: Hello! I'm listening. What would you like to discuss?
+      - key: SESSION_COMPLETE_RESPONSE
+        value: Thank you for your message. This conversation has ended.
       
       # Session Configuration
       - key: SESSION_TIMEOUT_MINUTES
