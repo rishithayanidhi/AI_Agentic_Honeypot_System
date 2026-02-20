@@ -67,13 +67,15 @@ def extract_json_from_text(text: str) -> str:
 class ScamDetector:
     """AI-powered scam detection service with fast-path optimization and automatic fallback"""
     
-    # Pre-compiled patterns for fast detection (10x faster than re.search)
-    _URGENT_PATTERN = re.compile(r'\b(urgent|immediate|now|today|expire|last chance|act now)\b', re.IGNORECASE)
-    _SENSITIVE_PATTERN = re.compile(r'\b(otp|pin|password|cvv|card number|account number|verification code)\b', re.IGNORECASE)
-    _THREAT_PATTERN = re.compile(r'\b(block|suspend|close|terminate|legal action|will be blocked)\b', re.IGNORECASE)
-    _BANK_PATTERN = re.compile(r'\b(bank|account|customer|kyc|sbi|hdfc|icici|axis)\b', re.IGNORECASE)
-    _UPI_PATTERN = re.compile(r'\b(upi|paytm|phonepe|gpay|google pay|bhim)\b', re.IGNORECASE)
-    _PRIZE_PATTERN = re.compile(r'\b(won|winner|prize|lottery|congratulations|selected|claim)\b', re.IGNORECASE)
+    # Pre-compiled patterns for fast detection with enhanced accuracy
+    _URGENT_PATTERN = re.compile(r'\b(urgent|immediate|now|today|asap|quickly|expire[ds]?|last chance|act now|hurry|limited time)\b', re.IGNORECASE)
+    _SENSITIVE_PATTERN = re.compile(r'\b(otp|one time password|pin|password|cvv|cvc|card number|account number|verification code|security code|passcode)\b', re.IGNORECASE)
+    _THREAT_PATTERN = re.compile(r'\b(block|suspend|close|terminate|deactivate|freeze|locked|legal action|will be blocked|action will be taken|penalty|fine|arrest)\b', re.IGNORECASE)
+    _BANK_PATTERN = re.compile(r'\b(bank|account|customer|kyc|know your customer|sbi|hdfc|icici|axis|pnb|bob|canara|atm|debit|credit|ifsc)\b', re.IGNORECASE)
+    _UPI_PATTERN = re.compile(r'\b(upi|paytm|phonepe|gpay|google pay|bhim|payment|transfer|send money)\b', re.IGNORECASE)
+    _PRIZE_PATTERN = re.compile(r'\b(won|winner|prize|lottery|jackpot|congratulations|selected|claim|reward|gift|lucky|bonus|cashback|refund)\b', re.IGNORECASE)
+    _LINK_PATTERN = re.compile(r'\b(click|link|url|website|visit|open|download|install|tap here|verify here|update here)\b', re.IGNORECASE)
+    _IMPERSONATION_PATTERN = re.compile(r'\b(department|official|officer|agent|representative|helpline|support|team|manager)\b', re.IGNORECASE)
     
     def __init__(self):
         self.primary_provider = settings.LLM_PROVIDER
@@ -338,7 +340,7 @@ class ScamDetector:
     @lru_cache(maxsize=1000)
     def _fast_scam_check(self, message_normalized: str) -> Optional[dict]:
         """Ultra-fast preliminary scam check using regex patterns - bypasses LLM for obvious scams
-        Returns None if unclear, or detection result if confident
+        Returns None if unclear, or detection result if confident (ENHANCED ACCURACY)
         """
         # Count pattern matches (using pre-compiled patterns for speed)
         urgent_count = len(self._URGENT_PATTERN.findall(message_normalized))
@@ -347,35 +349,43 @@ class ScamDetector:
         bank_count = len(self._BANK_PATTERN.findall(message_normalized))
         upi_count = len(self._UPI_PATTERN.findall(message_normalized))
         prize_count = len(self._PRIZE_PATTERN.findall(message_normalized))
+        link_count = len(self._LINK_PATTERN.findall(message_normalized))
+        impersonation_count = len(self._IMPERSONATION_PATTERN.findall(message_normalized))
         
-        total_score = urgent_count + sensitive_count + threat_count + bank_count + upi_count + prize_count
+        total_score = urgent_count + sensitive_count + threat_count + bank_count + upi_count + prize_count + link_count + impersonation_count
         
-        # HIGH CONFIDENCE SCAM - Skip LLM
+        # HIGH CONFIDENCE SCAM - Skip LLM (improved thresholds)
         if (urgent_count >= 2 and sensitive_count >= 1) or \
            (threat_count >= 2 and (bank_count >= 1 or upi_count >= 1)) or \
            (prize_count >= 2 and urgent_count >= 1) or \
-           total_score >= 6:
+           (impersonation_count >= 1 and (urgent_count + threat_count) >= 2) or \
+           (link_count >= 1 and (sensitive_count + urgent_count) >= 2) or \
+           total_score >= 7:
             
             self.fast_path_hits += 1
             
-            # Determine scam type
+            # Determine scam type with better classification
             if bank_count >= upi_count and bank_count >= prize_count:
                 scam_type = "bank_fraud"
             elif upi_count >= bank_count and upi_count >= prize_count:
                 scam_type = "upi_fraud"
             elif prize_count >= 2:
                 scam_type = "lottery_scam"
-            else:
+            elif link_count >= 1 and sensitive_count >= 1:
                 scam_type = "phishing"
+            elif impersonation_count >= 1:
+                scam_type = "impersonation"
+            else:
+                scam_type = "fraud_attempt"
             
-            confidence = min(0.75 + (total_score * 0.05), 0.95)
+            confidence = min(0.75 + (total_score * 0.04), 0.95)
             
             return {
                 'is_scam': True,
                 'confidence': confidence,
                 'scam_type': scam_type,
-                'reasoning': f'Fast detection: High-risk keywords detected (score: {total_score}) [OPTIMIZED]',
-                'key_indicators': ['urgent_language', 'sensitive_info_request', 'threats'] if threat_count else ['urgent_language', 'sensitive_info']
+                'reasoning': f'Fast detection: High-risk patterns detected (score: {total_score}) [ENHANCED]',
+                'key_indicators': ['urgent_language', 'sensitive_info_request', 'threats', 'impersonation']
             }
         
         # Return None if not confident - will use LLM

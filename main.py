@@ -401,11 +401,15 @@ async def process_message(raw_request: Request, request_start_time: float) -> Di
         session.messages.append(message_obj)
         session.message_count += 1
         
-        # Add conversation history to session if this is first message (only if list is small)
-        if conversation_history and not session.engagement_active and len(conversation_history) < 10:
+        # Add conversation history to session if this is first message (optimized)
+        # Only process if truly first message and history is reasonable size
+        if conversation_history and session.message_count == 1 and len(conversation_history) < 5:
+            # Use set for faster deduplication
+            existing_texts = {msg.text for msg in session.messages}
             for hist_msg in conversation_history:
-                if hist_msg not in session.messages:
+                if hist_msg.text not in existing_texts:
                     session.messages.insert(0, hist_msg)
+                    existing_texts.add(hist_msg.text)
         
         # Initialize detection variables
         detection_result = {}
@@ -413,33 +417,27 @@ async def process_message(raw_request: Request, request_start_time: float) -> Di
         scam_type = 'unknown'
         
         # SPEED OPTIMIZED: Run synchronously, intelligence extraction is fast
+        # Always extract intelligence (fast, no API calls)
+        try:
+            new_intel = intelligence_extractor.extract_from_message(message_text)
+            session.intelligence = intelligence_extractor.merge_intelligence(
+                session.intelligence, new_intel
+            )
+        except Exception as e:
+            logger.error(f"Intelligence extraction error: {e}", exc_info=False)
+        
+        # Scam detection (only if not already detected)
         if not session.scam_detected:
-            # Extract intelligence first (fast, no API calls)
-            try:
-                new_intel = intelligence_extractor.extract_from_message(message_text)
-                session.intelligence = intelligence_extractor.merge_intelligence(
-                    session.intelligence, new_intel
-                )
-            except Exception as e:
-                logger.error(f"Intelligence extraction error: {e}")
-            
-            # Scam detection (uses keyword-based fallback primarily, fast)
             try:
                 detection_result = scam_detector.detect_scam(message_text, session.messages)
             except Exception as e:
-                logger.error(f"Scam detection error: {e}")
+                logger.error(f"Scam detection error: {e}", exc_info=False)
                 detection_result = {
                     'is_scam': False,
                     'confidence': 0.0,
                     'scam_type': 'error',
                     'reasoning': f'Detection error: {str(e)[:100]}'
                 }
-        else:
-            # Session already detected - only extract intelligence (fast)
-            new_intel = intelligence_extractor.extract_from_message(message_text)
-            session.intelligence = intelligence_extractor.merge_intelligence(
-                session.intelligence, new_intel
-            )
         
         # Process detection results
         if not session.scam_detected:
@@ -492,25 +490,27 @@ async def process_message(raw_request: Request, request_start_time: float) -> Di
                         message_count=session.message_count
                     )
                 
-                # Generate response with 20s timeout to avoid GUVI 30s timeout
+                # Generate response with 15s timeout (reduced for faster failures)
                 try:
                     agent_decision = await asyncio.wait_for(
                         asyncio.to_thread(
                             ai_agent.generate_response,
                             scammer_message=message_text,
-                            conversation_history=session.messages,
+                            conversation_history=session.messages[-5:],  # Only last 5 messages for speed
                             persona=session.persona,
                             scam_type=scam_type,
-                            extracted_intel=session.intelligence.model_dump()
+                            extracted_intel=session.intelligence.model_dump(),
+                            message_count=session.message_count
                         ),
-                        timeout=20.0
+                        timeout=15.0  # Reduced from 20s to 15s
                     )
                 except asyncio.TimeoutError:
-                    logger.warning("AI generation timed out after 20s - using fast fallback")
+                    logger.warning("AI generation timed out after 15s - using fast fallback")
                     agent_decision = {
-                        'response': "I see. Could you provide more details about this?",
+                        'response': "I see. Could you provide more details?",
                         'should_continue': True,
-                        'notes': 'Timeout - fast fallback'
+                        'notes': 'Timeout fallback',
+                        'strategy': 'fast'
                     }
                 
                 # Safely extract response fields with validation

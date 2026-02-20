@@ -61,9 +61,24 @@ class AIAgent:
         self.gemini_clients = []  # Multiple Gemini clients
         self.response_cache = {}  # Cache for repeated scenarios
         self.cache_hits = 0
+        self.cache_max_size = 500  # Increased cache size
         
         # Initialize all available providers dynamically
         self._initialize_providers()
+    
+    def _get_cache_key(self, scammer_message: str, persona: str, message_count: int) -> str:
+        """Generate cache key for similar scenarios"""
+        # Use message + persona + stage for caching
+        stage = "early" if message_count < 3 else "mid" if message_count < 8 else "late"
+        cache_str = f"{scammer_message.lower()[:100]}|{persona}|{stage}"
+        return hashlib.md5(cache_str.encode()).hexdigest()
+    
+    def _add_to_cache(self, key: str, response: Dict):
+        """Add response to cache with LRU eviction"""
+        if len(self.response_cache) >= self.cache_max_size:
+            # Remove oldest entry (FIFO)
+            self.response_cache.pop(next(iter(self.response_cache)))
+        self.response_cache[key] = response
     
     def _initialize_providers(self):
         """Initialize LLM providers (Claude Haiku 4.5, Gemini with multi-key support)"""
@@ -252,12 +267,23 @@ class AIAgent:
         }
         """
         
-        # Build conversation context
-        context = self._build_conversation_context(conversation_history)
-        
         # Use provided message_count or calculate from history
         if message_count == 0:
             message_count = len(conversation_history)
+        
+        # Check cache first for faster responses
+        cache_key = self._get_cache_key(scammer_message, persona, message_count)
+        if cache_key in self.response_cache:
+            self.cache_hits += 1
+            cached_response = self.response_cache[cache_key].copy()
+            # Add slight variation to avoid exact repetition
+            if message_count % 2 == 0 and cached_response.get('response'):
+                cached_response['response'] = cached_response['response'].replace('?', '??')
+            logger.info(f"⚡ Cache hit! Returning cached response (hits: {self.cache_hits})")
+            return cached_response
+        
+        # Build conversation context (already optimized to 5 messages)
+        context = self._build_conversation_context(conversation_history)
         
         # Determine conversation stage
         stage = self._determine_stage(message_count, extracted_intel)
@@ -340,7 +366,10 @@ JSON only (no markdown):
                     logger.error(f"AI Agent: Response missing 'response' field")
                     agent_decision['response'] = "I'm not sure what you mean. Can you explain?"
                 
-                logger.info(f"AI Agent: Successfully generated response with {provider}")
+                # Add to cache for future use  
+                self._add_to_cache(cache_key, agent_decision)
+                
+                logger.info(f"✅ AI Agent: Successfully generated response with {provider}")
                 return agent_decision
                 
             except json.JSONDecodeError as e:

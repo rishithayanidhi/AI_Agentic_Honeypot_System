@@ -4,14 +4,16 @@ from src.models.schemas import ExtractedIntelligence, Message
 
 
 class IntelligenceExtractor:
-    """Extracts structured intelligence from conversations - OPTIMIZED for speed"""
+    """Extracts structured intelligence from conversations - OPTIMIZED for speed & accuracy"""
     
-    # Pre-compile regex patterns for 10x faster matching
-    _BANK_ACCOUNT_PATTERN = re.compile(r'\b\d{9,18}\b')
-    _UPI_PATTERN = re.compile(r'\b[\w\.-]+@[\w\.-]+\b')
-    _EMAIL_PATTERN = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b')
-    _PHONE_PATTERN = re.compile(r'\+?\d{10,15}')
-    _URL_PATTERN = re.compile(r'https?://[^\s<>"{}|\\^`\[\]]+')
+    # Pre-compile regex patterns for 10x faster matching and better accuracy
+    _BANK_ACCOUNT_PATTERN = re.compile(r'\b\d{9,18}\b')  # 9-18 digits (Indian bank accounts)
+    _UPI_PATTERN = re.compile(r'\b[\w\.-]+@[\w\.-]+\b')  # Email-like UPI format
+    _EMAIL_PATTERN = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b')  # Standard email
+    _PHONE_PATTERN = re.compile(r'(?:\+91[\s-]?)?[6-9]\d{9}\b')  # Indian phone numbers (more accurate)
+    _URL_PATTERN = re.compile(r'https?://[^\s<>"{}|\\^`\[\]]+|www\.[^\s<>"{}|\\^`\[\]]+')  # HTTP and www links
+    _CVV_PATTERN = re.compile(r'\b\d{3,4}\b')  # CVV codes
+    _OTP_PATTERN = re.compile(r'\b\d{4,6}\b')  # OTP codes
     
     # Use frozenset for immutable, faster lookups (O(1) instead of O(n))
     _UPI_PROVIDERS = frozenset([
@@ -19,14 +21,24 @@ class IntelligenceExtractor:
         'okhdfcbank', 'oksbi', 'okicici', 'sbi', 'hdfc', 'icici'
     ])
     
-    # Common scam keywords as set for O(1) lookup
+    # Common scam keywords as frozenset for O(1) lookup (expanded for better detection)
     _SCAM_KEYWORDS = frozenset([
-        'urgent', 'verify', 'suspend', 'block', 'immediate', 'account',
-        'security', 'update', 'confirm', 'click', 'link', 'prize',
-        'winner', 'congratulations', 'claim', 'expires', 'limited',
-        'act now', 'verify now', 'update now', 'confirm now', 'kyc',
-        'otp', 'password', 'pin', 'cvv', 'card number', 'expiry',
-        'compromised', 'fraud', 'department'
+        # Urgency
+        'urgent', 'immediate', 'now', 'today', 'expires', 'expired', 'limited', 'last chance',
+        # Account/Security
+        'verify', 'suspend', 'suspended', 'block', 'blocked', 'account', 'security', 'update', 
+        'confirm', 'compromised', 'fraud', 'unauthorized', 'locked', 'freeze', 'deactivate',
+        # Banking
+        'bank', 'atm', 'card', 'credit', 'debit', 'kyc', 'ifsc', 'branch', 'transaction',
+        # Sensitive info
+        'otp', 'password', 'pin', 'cvv', 'card number', 'expiry', 'code', 'verification',
+        # Prizes/Rewards
+        'prize', 'winner', 'won', 'congratulations', 'lottery', 'claim', 'reward', 'gift',
+        'selected', 'exclusive', 'lucky', 'bonus', 'cash', 'refund',
+        # Actions
+        'click', 'link', 'download', 'install', 'call', 'contact', 'reply', 'respond',
+        # Threats
+        'department', 'legal', 'action', 'police', 'arrest', 'court', 'fine', 'tax', 'penalty'
     ])
     
     def __init__(self):
