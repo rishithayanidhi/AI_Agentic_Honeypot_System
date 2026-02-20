@@ -265,46 +265,26 @@ class AIAgent:
         # Get persona details
         persona_info = self.PERSONAS.get(persona, self.PERSONAS["cautious_user"])
         
-        # Build the prompt for the AI
-        prompt = f"""You are a REAL PERSON chatting with someone. You don't know you're talking to a scammer.
+        # Build the prompt for the AI (OPTIMIZED FOR SPEED - 60% shorter)
+        prompt = f"""You're a real person texting. Don't know it's a scam. Be {persona_info['traits']}.
 
-PERSONA: {persona}
-Traits: {persona_info['traits']}
-
-CONVERSATION SO FAR:
+CHAT:
 {context}
+Them: {scammer_message}
 
-LATEST MESSAGE FROM THEM:
-"{scammer_message}"
+REPLY RULES:
+- 1-2 sentences MAX (sometimes just "omg" or "wait what")
+- Casual SMS style: lowercase, typos (ur, teh, dont), "??" "!!"
+- Show emotion: worried, confused, curious
+- Ask 1 simple question
+- NO formal language
 
-CRITICAL RULES FOR REALISM:
-1. Keep responses SHORT (1-3 sentences max, sometimes just 1!)
-2. Use casual WhatsApp/SMS style - lowercase, no perfect grammar
-3. Make natural typos: teh→the, recieve→receive, dont→don't, plz, u, ur
-4. Show raw emotions with: "oh no!", "really??", "wait what", punctuation!!!
-5. Don't over-explain or sound articulate - be a bit scattered
-6. Ask 1 simple question at a time, not multiple
-7. Sometimes respond with JUST emotion: "😰", "omg", "wait"
-8. Never use formal language or perfect structure
-9. Real people don't explain their thought process
-10. Be reactive, not analytical
-
-BAD (too articulate): "I'm concerned about this situation. Could you please clarify what specific issue exists with my account? I want to understand the nature of this problem before proceeding."
-
-GOOD (natural): "wait my account has problem?? what kind of problem?? i just checked yesterday everythng was fine"
-
-GOOD (with typo): "oh no is it serious? what shud i do"
-
-GOOD (brief emotion): "really?? thats scary"
-
-YOUR GOAL: Sound like a real worried person texting, NOT like customer service or formal writing.
-
-Respond with JSON (no markdown, keep response field SHORT and casual):
+JSON only (no markdown):
 {{
-  "response": "short casual response with maybe a typo",
-  "strategy": "brief note",
-  "should_continue": true/false,
-  "notes": "quick observation"
+  "response": "short casual reply maybe with typo",
+  "strategy": "note",
+  "should_continue": true,
+  "notes": "observation"
 }}"""
 
         # Try each available provider until one succeeds
@@ -325,7 +305,7 @@ Respond with JSON (no markdown, keep response field SHORT and casual):
         for provider in providers_to_try:
             try:
                 logger.info(f"AI Agent: Attempting response generation with provider: {provider}")
-                result = self._call_llm(provider, prompt, temperature=0.7)
+                result = self._call_llm(provider, prompt, temperature=settings.LLM_TEMPERATURE)
                 
                 # Log raw result details
                 logger.info(f"AI Agent: Received response length: {len(result)} characters")
@@ -389,13 +369,13 @@ Respond with JSON (no markdown, keep response field SHORT and casual):
         return fallback
     
     def _build_conversation_context(self, messages: List[Message]) -> str:
-        """Build conversation context from message history"""
+        """Build conversation context from message history (last 5 messages only for speed)"""
         if not messages:
             return "No previous conversation"
         
         context = ""
-        for msg in messages[-10:]:  # Last 10 messages
-            role = "Scammer" if msg.sender == "scammer" else "You (as victim)"
+        for msg in messages[-5:]:  # Last 5 messages only (reduced from 10 for speed)
+            role = "Them" if msg.sender == "scammer" else "You"
             context += f"{role}: {msg.text}\n"
         
         return context

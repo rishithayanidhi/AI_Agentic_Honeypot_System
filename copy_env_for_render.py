@@ -34,15 +34,15 @@ for i in range(1, 21):
     if key_value and key_value != 'your-google-api-key-here':
         gemini_keys[key_name] = key_value
 
-# Performance settings (Ultra-Optimized for 90+ Score)
+# Performance settings (ULTRA-SPEED - Sub-2s Target)
 performance_vars = {
-    'CACHE_MAX_SIZE': '1000',
-    'LLM_MAX_TOKENS_DETECTION': '700',
-    'LLM_MAX_TOKENS_RESPONSE': '1000',
-    'LLM_REQUEST_TIMEOUT': '15',
-    'LLM_TEMPERATURE': '0.8',
+    'CACHE_MAX_SIZE': '2000',
+    'LLM_MAX_TOKENS_DETECTION': '350',
+    'LLM_MAX_TOKENS_RESPONSE': '600',
+    'LLM_REQUEST_TIMEOUT': '10',
+    'LLM_TEMPERATURE': '0.7',
     'ENABLE_FAST_PATH': 'true',
-    'FAST_PATH_THRESHOLD': '4',
+    'FAST_PATH_THRESHOLD': '3',
 }
 
 # Session settings
@@ -53,7 +53,7 @@ session_vars = {
 
 # Security settings
 security_vars = {
-    'RATE_LIMIT_PER_MINUTE': '60',
+    'RATE_LIMIT_PER_MINUTE': '100',
     'MAX_REQUEST_SIZE': '1048576',
     'SCAM_DETECTION_THRESHOLD': '0.4',
     'SCAM_SCORE_THRESHOLD': '1',

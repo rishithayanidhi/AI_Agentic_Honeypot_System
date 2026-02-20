@@ -65,21 +65,21 @@ services:
       - key: GUVI_CALLBACK_URL
         value: https://hackathon.guvi.in/api/updateHoneyPotFinalResult
       
-      # Performance Configuration - ULTRA-OPTIMIZED (90+ Score Target)
+      # Performance Configuration - ULTRA-SPEED (Sub-2s Target)
       - key: CACHE_MAX_SIZE
-        value: 1000
+        value: 2000
       - key: LLM_MAX_TOKENS_DETECTION
-        value: 700
+        value: 350
       - key: LLM_MAX_TOKENS_RESPONSE
-        value: 1000
+        value: 600
       - key: LLM_REQUEST_TIMEOUT
-        value: 15
+        value: 10
       - key: LLM_TEMPERATURE
-        value: 0.8
+        value: 0.7
       - key: ENABLE_FAST_PATH
         value: "true"
       - key: FAST_PATH_THRESHOLD
-        value: 4
+        value: 3
       
       # Session Configuration
       - key: SESSION_TIMEOUT_MINUTES

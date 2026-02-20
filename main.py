@@ -358,14 +358,15 @@ async def process_message(raw_request: Request, request_start_time: float) -> Di
         
         # OPTIMIZATION: Fast-path for short/test messages (avoid expensive processing)
         message_lower = message_text.lower().strip()
+        word_count = len(message_text.split())
         has_strong_scam_keywords = any(
             keyword in message_lower for keyword in 
             ["urgent", "otp", "blocked", "suspend", "compromised", "verify account", "bank account", "prize", "won"]
         )
         
-        # Fast return for short messages without scam indicators
-        if len(message_text) < 50 and not has_strong_scam_keywords:
-            logger.info(f"⚡ Fast path: Short message (len={len(message_text)}) - instant response")
+        # Fast return for very short messages (3 words or less) without scam indicators
+        if word_count <= settings.FAST_PATH_THRESHOLD and not has_strong_scam_keywords:
+            logger.info(f"⚡ Fast path: Short message ({word_count} words) - instant response")
             response_time = time.time() - request_start_time
             health_monitor.record_request(response_time)
             health_monitor.fast_path_hits += 1

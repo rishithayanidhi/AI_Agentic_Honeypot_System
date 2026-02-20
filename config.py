@@ -105,16 +105,15 @@ class Settings(BaseSettings):
     USE_REDIS: bool = False
     
     # Performance Configuration (OPTIMIZED FOR SPEED & ACCURACY)
-    CACHE_MAX_SIZE: int = 1000  # Increased cache for more hits
-    LLM_MAX_TOKENS_DETECTION: int = 500  # Reduced for faster detection
-    LLM_MAX_TOKENS_RESPONSE: int = 150   # Reduced for faster agent responses
-    LLM_TEMPERATURE_DETECTION: float = 0.1
-    LLM_TEMPERATURE_RESPONSE: float = 0.7
-    LLM_REQUEST_TIMEOUT: int = 5  # Fast timeout for quick failures
+    CACHE_MAX_SIZE: int = 2000  # Read from .env
+    LLM_MAX_TOKENS_DETECTION: int = 350  # Read from .env
+    LLM_MAX_TOKENS_RESPONSE: int = 600   # Read from .env
+    LLM_TEMPERATURE: float = 0.7  # Read from .env
+    LLM_REQUEST_TIMEOUT: int = 10  # Read from .env
     
     # Fast-path optimization (bypass LLM for obvious scams)
     ENABLE_FAST_PATH: bool = True  # 10x faster for obvious scams
-    FAST_PATH_THRESHOLD: int = 6   # Keyword score threshold for fast detection
+    FAST_PATH_THRESHOLD: int = 3   # Word count threshold for instant responses
     
     # Detection Configuration (Dynamic Thresholds)
     SCAM_DETECTION_THRESHOLD: float = 0.5  # Minimum confidence to consider as scam
